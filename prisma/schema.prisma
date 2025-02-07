@@ -1,0 +1,105 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  password          String
+  credits_remaining Int         @default(0)
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
+  name              String?     // Optional field for user's name
+  subscriptions     Subscription[]
+  chats             Chat[]
+  api_usage_logs    APIUsageLog[]
+  credit_transactions CreditTransaction[]
+}
+
+model Plan {
+  plan_id          String   @id @default(uuid())
+  plan_name        String   @unique
+  credits_per_month Int
+  price            Float
+  subscriptions     Subscription[]
+}
+
+model Subscription {
+  subscription_id  String   @id @default(uuid())
+  user_id          String
+  plan_id          String
+  start_date       DateTime @default(now())
+  end_date         DateTime
+  status           String   // Active, Canceled, Expired, Pending
+  payment_status   String   // Paid, Failed, Refunded
+  discount_applied Boolean  @default(false)
+  stripe_payment_id String
+  user             User     @relation(fields: [user_id], references: [id])
+  plan             Plan     @relation(fields: [plan_id], references: [plan_id])
+  credit_transactions CreditTransaction[]  // Add this relation
+}
+
+model API {
+  api_id           String   @id @default(uuid())
+  api_name         String
+  pricing_per_token Float
+  input_output_type String
+  status           String   // Active/Inactive
+  api_usage_logs   APIUsageLog[]  @relation("APIUsageLogAPI") // Relation to APIUsageLog
+}
+
+model Chat {
+  chat_id        String   @id @default(uuid())
+  user_id        String
+  chat_title     String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  user           User     @relation(fields: [user_id], references: [id])
+  chat_history   ChatHistory[]
+  api_usage_logs APIUsageLog[]  // Relation to APIUsageLog
+}
+
+model ChatHistory {
+  history_id     String   @id @default(uuid())
+  chat_id        String
+  user_input     String
+  api_response   String
+  input_type     String   // Text
+  output_type    String   // Text
+  timestamp      DateTime @default(now())
+  context_id     String   // Multi-step conversation
+  chat           Chat     @relation(fields: [chat_id], references: [chat_id])
+}
+
+model APIUsageLog {
+  log_id          String   @id @default(uuid())
+  user_id         String
+  chat_id         String
+  tokens_used     Int
+  credits_deducted Int
+  usage_type      String   // user request or api response
+  input_type      String   // Text
+  output_type     String   // Text
+  timestamp       DateTime @default(now())
+  user            User     @relation(fields: [user_id], references: [id])
+  chat            Chat     @relation(fields: [chat_id], references: [chat_id])
+  apis            API[]    @relation("APIUsageLogAPI")
+}
+
+model CreditTransaction {
+  transaction_id  String   @id @default(uuid())
+  user_id         String
+  subscription_id String
+  credits_added   Int
+  credits_deducted Int
+  payment_method  String   @default("Stripe")
+  description     String
+  timestamp       DateTime @default(now())
+  user            User     @relation(fields: [user_id], references: [id])
+  subscription    Subscription @relation(fields: [subscription_id], references: [subscription_id])
+}

@@ -4,10 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "start-dev": "unset npm_config_prefix && source ~/.nvm/nvm.sh && nvm use 23.7.0 && npm run dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "ts-node prisma/seed.ts"
+    "format": "prettier --write .",
+    "check-format": "prettier --check .",
+    "seed": "ts-node prisma/seed.ts",
+    "run-prisma-migrate": "npx prisma migrate dev",
+    "run-prisma-migrate-name": "npx prisma migrate dev --name <migration_name>",
+    "prisma-generate": "npx prisma generate",
+    "prisma-studio": "npx prisma studio",
+    "start-prod": "npm run build && npm run start",
+    "install": "npm install"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -34,7 +43,10 @@
     "@types/react-dom": "^18",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.3",
     "postcss": "^8",
+    "prettier": "^3.4.2",
     "prisma": "^6.3.1",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",

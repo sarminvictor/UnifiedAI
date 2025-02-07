@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function SignOutPage() {
   const router = useRouter();
@@ -10,7 +10,7 @@ export default function SignOutPage() {
   useEffect(() => {
     const signOutUser = async () => {
       await signOut();
-      router.push("/auth/signin");
+      router.push('/auth/signin');
     };
 
     signOutUser();

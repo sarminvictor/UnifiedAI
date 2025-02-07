@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "start-dev",
+      "type": "shell",
+      "command": "nvm use 23.7.0 && npm run dev", // Ensure correct Node version
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Start the development server"
+    }
+  ]
+}

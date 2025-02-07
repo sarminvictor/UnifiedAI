@@ -71,7 +71,10 @@ export default function SignIn() {
             />
           </div>
           {error && <div className="text-red-500">{error}</div>}
-          <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded">
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white p-2 rounded"
+          >
             Sign In with Email
           </button>
         </form>
@@ -105,7 +108,9 @@ export default function SignIn() {
         {/* Forgot Password Link */}
         <div className="text-center mt-2">
           <Link href="/auth/reset-password">
-            <span className="text-blue-500 hover:underline">Forgot Password?</span>
+            <span className="text-blue-500 hover:underline">
+              Forgot Password?
+            </span>
           </Link>
         </div>
 

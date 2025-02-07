@@ -69,7 +69,10 @@ export default function SignUp() {
             />
           </div>
           {error && <div className="text-red-500">{error}</div>}
-          <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded">
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white p-2 rounded"
+          >
             Sign Up
           </button>
         </form>

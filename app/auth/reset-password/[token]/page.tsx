@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function ResetPasswordPage({ params }: { params: { token: string } }) {
+export default function ResetPasswordPage({
+  params,
+}: {
+  params: { token: string };
+}) {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -31,8 +35,19 @@ export default function ResetPasswordPage({ params }: { params: { token: string 
       <div className="w-full max-w-md p-6">
         <h2 className="text-2xl font-bold text-center">Enter New Password</h2>
         <form onSubmit={handleReset}>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full p-2 border" required />
-          <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded mt-4">Reset Password</button>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="block w-full p-2 border"
+            required
+          />
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white p-2 rounded mt-4"
+          >
+            Reset Password
+          </button>
         </form>
         {message && <p className="text-green-500">{message}</p>}
         {error && <p className="text-red-500">{error}</p>}

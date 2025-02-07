@@ -48,7 +48,10 @@ export default function ResetPassword() {
           </div>
           {message && <div className="text-green-500">{message}</div>}
           {error && <div className="text-red-500">{error}</div>}
-          <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded">
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white p-2 rounded"
+          >
             Send Reset Link
           </button>
         </form>

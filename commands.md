@@ -2,15 +2,14 @@
 
 ## Start the Development Server
 
-- **Command**: `npm run dev`
+````bash
+```npm run dev
 - **Description**: Start the Next.js development server.
-- [Learn More about Next.js Development](https://nextjs.org/docs)
 
 ## Run Tests
 
 - **Command**: `npm run test`
 - **Description**: Run the test suite (if you have tests set up).
-- [Learn More about Testing](https://jestjs.io/)
 
 ## Format Code
 
@@ -120,3 +119,4 @@
 - **Command**: `git log --oneline`
 - **Description**: View the commit history.
 - [Learn More about Git Log](https://docs.github.com/en/github/using-git/viewing-your-commit-history)
+````

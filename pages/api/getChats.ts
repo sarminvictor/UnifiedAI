@@ -17,16 +17,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         deleted: false 
       },
       include: {
-        chat_history: true
+        chat_history: {
+          orderBy: {
+            timestamp: 'asc'
+          },
+          distinct: ['timestamp'] // Ensure no duplicate messages
+        }
       },
       orderBy: {
         updated_at: 'desc'
       }
     });
 
+    // Transform the data to match the frontend structure
+    const transformedChats = activeChats.map(chat => ({
+      ...chat,
+      messages: chat.chat_history
+        .filter((msg, index, self) => 
+          // Additional deduplication by timestamp
+          index === self.findIndex(m => m.timestamp.getTime() === msg.timestamp.getTime())
+        )
+        .map(msg => ({
+          userInput: msg.user_input,
+          apiResponse: msg.api_response,
+          inputType: msg.input_type,
+          outputType: msg.output_type,
+          timestamp: msg.timestamp.toISOString(),
+          contextId: msg.context_id
+        }))
+    }));
+
     res.status(200).json({ 
       success: true, 
-      data: { activeChats } 
+      data: { activeChats: transformedChats } 
     });
   } catch (error) {
     console.error('Error fetching chats:', error);

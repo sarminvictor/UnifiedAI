@@ -1,17 +1,15 @@
 import NextAuth, { AuthOptions, SessionStrategy } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prismaClient'; // Use absolute import
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        username: { label: 'Email', type: 'email' },
+        username: { label: 'Email', type: 'email' }, // Revert to email
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
@@ -20,7 +18,7 @@ export const authOptions: AuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.username },
+          where: { email: credentials.username }, // Revert to email
         });
 
         if (!user) {
@@ -48,6 +46,18 @@ export const authOptions: AuthOptions = {
   session: { strategy: 'jwt' as SessionStrategy },
   pages: { signIn: '/auth/signin' },
   callbacks: {
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub as string; // Add user ID to session
+      }
+      return session;
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id;
+      }
+      return token;
+    },
     async signIn({ user, account }) {
       if (account && account.provider === 'google') {
         if (!user.email) {

@@ -8,9 +8,9 @@ generator client {
 }
 
 model User {
-  id                String      @id @default(uuid())
+  id                String      @id @default(uuid()) @map("id") // Ensure id is a string
   email             String      @unique
-  password          String
+  password          String?
   credits_remaining Int         @default(0)
   created_at        DateTime    @default(now())
   updated_at        DateTime    @updatedAt
@@ -59,6 +59,7 @@ model Chat {
   chat_title     String
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+  deleted        Boolean  @default(false) // New field to mark chat as deleted
   user           User     @relation(fields: [user_id], references: [id])
   chat_history   ChatHistory[]
   api_usage_logs APIUsageLog[]  // Relation to APIUsageLog
@@ -69,8 +70,8 @@ model ChatHistory {
   chat_id        String
   user_input     String
   api_response   String
-  input_type     String   // Text
-  output_type    String   // Text
+  input_type     String?   // Text
+  output_type    String?  // Make output_type optional
   timestamp      DateTime @default(now())
   context_id     String   // Multi-step conversation
   chat           Chat     @relation(fields: [chat_id], references: [chat_id])
@@ -84,7 +85,7 @@ model APIUsageLog {
   credits_deducted Int
   usage_type      String   // user request or api response
   input_type      String   // Text
-  output_type     String   // Text
+  output_type    String   // Text
   timestamp       DateTime @default(now())
   user            User     @relation(fields: [user_id], references: [id])
   chat            Chat     @relation(fields: [chat_id], references: [chat_id])

@@ -1,13 +1,11 @@
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prismaClient'; // Use absolute import
 import bcrypt from 'bcryptjs';
 import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { AdapterUser } from 'next-auth/adapters';
-
-const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -39,7 +37,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid email or password');
         }
 
-        return { id: user.id, email: user.email };
+        return { id: user.id.toString(), email: user.email };
       },
     }),
     GoogleProvider({
@@ -51,31 +49,56 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (account && account.provider === 'google') {
+        if (!user.email) {
+          throw new Error('User email is required');
+        }
+
+        // Check if the user already exists by email
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        // If the user doesn't exist, create a new user
+        if (!existingUser) {
+          const newUser = await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name || '', // Google may not provide a name
+              password: '', // No password for Google users
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+          user.id = newUser.id;
+        } else {
+          user.id = existingUser.id;
+        }
+      }
+      return true; // Allow sign-in to proceed
+    },
     async session({ session, token }: { session: Session; token: JWT }) {
-      session.user = {
-        ...session.user, // Preserve existing properties
-        id: token.sub ?? '', // Ensure `id` exists
-      };
+      // Fetch the user from the database to get the correct ID
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+      });
+
+      if (user) {
+        session.user.id = user.id.toString(); // Ensure `id` exists
+      }
+
       return session;
     },
     async jwt({ token, user }: { token: JWT; user?: AdapterUser }) {
       if (user) {
-        token.sub = user.id;
-        token.email = user.email ?? '';
+        token.sub = user.id.toString();
       }
       return token;
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      console.log('URL:', url);
-      console.log('Base URL:', baseUrl);
-
-      if (url.includes('google')) {
-        console.log('Redirecting to /user after Google Sign-In');
-        return baseUrl + '/user';
-      }
-
-      console.log('Redirecting based on default logic');
-      return url.startsWith(baseUrl) ? baseUrl + '/user' : baseUrl;
+      // Redirect to the chat page after login
+      return baseUrl + '/';
     },
   },
   secret: process.env.NEXTAUTH_SECRET,

@@ -11,18 +11,18 @@ const handler = NextAuth({
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        username: { label: 'Email', type: 'email' }, // Changed from email to username
+        email: { label: 'Email', type: 'email' }, // Revert to email
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
-          // Changed from email to username
+        if (!credentials?.email || !credentials?.password) {
+          // Revert to email
           throw new Error('Missing credentials');
         }
 
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.username, // Changed from email to username
+            email: credentials.email, // Revert to email
           },
         });
 

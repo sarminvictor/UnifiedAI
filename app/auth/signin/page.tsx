@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
+import styles from './signin.module.css';
 
 export default function SignIn() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function SignIn() {
 
     try {
       const result = await signIn('credentials', {
-        username: email,
+        email: email,
         password,
         redirect: false,
       });
@@ -25,7 +26,7 @@ export default function SignIn() {
       if (result?.error) {
         setError(result.error);
       } else if (result?.ok) {
-        router.push('/user');
+        router.push('/');
       }
     } catch (error) {
       console.error('Sign in error:', error);
@@ -36,7 +37,7 @@ export default function SignIn() {
   const handleGoogleSignIn = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     try {
-      await signIn('google', { callbackUrl: '/user' });
+      await signIn('google', { callbackUrl: '/' });
     } catch (error) {
       console.error('Google sign-in error:', error);
       setError('Google sign-in failed.');
@@ -44,8 +45,8 @@ export default function SignIn() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="space-y-6 w-full max-w-md p-6">
+    <div className={styles.container}>
+      <div className={styles.formContainer}>
         {/* Sign-in Form */}
         <form onSubmit={handleCredentialsSignIn} className="space-y-4">
           <div>
@@ -55,7 +56,7 @@ export default function SignIn() {
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="block w-full border p-2"
+              className={styles.input}
               required
             />
           </div>
@@ -66,24 +67,18 @@ export default function SignIn() {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full border p-2"
+              className={styles.input}
               required
             />
           </div>
-          {error && <div className="text-red-500">{error}</div>}
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white p-2 rounded"
-          >
+          {error && <div className={styles.error}>{error}</div>}
+          <button type="submit" className={styles.button}>
             Sign In with Email
           </button>
         </form>
 
         {/* Google Sign-In Button */}
-        <button
-          onClick={handleGoogleSignIn}
-          className="w-full bg-white border border-gray-300 text-gray-700 p-2 rounded flex items-center justify-center space-x-2 mt-4"
-        >
+        <button onClick={handleGoogleSignIn} className={styles.googleButton}>
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
               fill="currentColor"
@@ -108,9 +103,7 @@ export default function SignIn() {
         {/* Forgot Password Link */}
         <div className="text-center mt-2">
           <Link href="/auth/reset-password">
-            <span className="text-blue-500 hover:underline">
-              Forgot Password?
-            </span>
+            <span className={styles.link}>Forgot Password?</span>
           </Link>
         </div>
 
@@ -118,7 +111,7 @@ export default function SignIn() {
         <div className="text-center mt-4">
           <p>Don’t have an account?</p>
           <Link href="/auth/signup">
-            <span className="text-blue-500 hover:underline">Sign up here</span>
+            <span className={styles.link}>Sign up here</span>
           </Link>
         </div>
       </div>

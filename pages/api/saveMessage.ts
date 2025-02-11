@@ -5,7 +5,10 @@ import { authOptions } from '../../app/auth.config';
 
 const prisma = new PrismaClient();
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   console.log('🔹 Request received at /api/saveMessage');
 
   try {
@@ -13,17 +16,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('✅ Database connected successfully');
   } catch (error) {
     console.error('❌ Error connecting to the database:', error);
-    return res.status(500).json({ success: false, message: 'Database connection error' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Database connection error' });
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    return res
+      .status(405)
+      .json({ success: false, message: 'Method Not Allowed' });
   }
 
   const { chatId, message } = req.body;
 
   if (!chatId || !message) {
-    return res.status(400).json({ success: false, message: 'chatId and message are required' });
+    return res
+      .status(400)
+      .json({ success: false, message: 'chatId and message are required' });
   }
 
   try {
@@ -40,7 +49,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!chat) {
-      console.log(`⚠️ Chat not found, creating new chat with chatId: ${chatId}`);
+      console.log(
+        `⚠️ Chat not found, creating new chat with chatId: ${chatId}`
+      );
 
       chat = await prisma.chat.create({
         data: {
@@ -67,12 +78,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('🔹 Saving message...');
 
     const missingFields = [];
-    if (!message.userInput || !message.userInput.trim()) missingFields.push("userInput");
-    if (!message.timestamp) missingFields.push("timestamp");
+    if (!message.userInput || !message.userInput.trim())
+      missingFields.push('userInput');
+    if (!message.timestamp) missingFields.push('timestamp');
 
     if (missingFields.length > 0) {
-      console.error(`❌ Chat ${chatId} Message is missing fields:`, missingFields);
-      throw new Error(`Chat ${chatId} Message is missing required fields: ${missingFields.join(", ")}`);
+      console.error(
+        `❌ Chat ${chatId} Message is missing fields:`,
+        missingFields
+      );
+      throw new Error(
+        `Chat ${chatId} Message is missing required fields: ${missingFields.join(', ')}`
+      );
     }
 
     const savedMessage = await prisma.chatHistory.create({
@@ -98,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         outputType: savedMessage.output_type,
         timestamp: savedMessage.timestamp.toISOString(),
         contextId: savedMessage.context_id,
-      }
+      },
     });
   } catch (error) {
     const err = error as Error;

@@ -3,7 +3,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import prisma from '@/lib/prismaClient'; // Use absolute import
 import bcrypt from 'bcryptjs';
-import type { NextAuthOptions, Session } from 'next-auth';
+import type { NextAuthOptions, Session, User as NextAuthUser } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { AdapterUser } from 'next-auth/adapters';
 
@@ -25,7 +25,7 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
-        if (!user) {
+        if (!user || !user.password) {
           throw new Error('Invalid email or password');
         }
 
@@ -50,22 +50,20 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account }) {
-      if (account && account.provider === 'google') {
+      if (account?.provider === 'google') {
         if (!user.email) {
           throw new Error('User email is required');
         }
 
-        // Check if the user already exists by email
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email },
         });
 
-        // If the user doesn't exist, create a new user
         if (!existingUser) {
           const newUser = await prisma.user.create({
             data: {
               email: user.email,
-              name: user.name || '', // Google may not provide a name
+              name: user.name ?? '', // Handle null/undefined safely
               password: '', // No password for Google users
               created_at: new Date(),
               updated_at: new Date(),
@@ -79,25 +77,24 @@ export const authOptions: NextAuthOptions = {
       return true; // Allow sign-in to proceed
     },
     async session({ session, token }: { session: Session; token: JWT }) {
-      // Fetch the user from the database to get the correct ID
       const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
+        where: { email: session.user.email ?? undefined },
       });
 
       if (user) {
-        session.user.id = user.id.toString(); // Ensure `id` exists
+        session.user.id = user.id.toString();
+        session.user.name = user.name ?? undefined;
       }
 
       return session;
     },
-    async jwt({ token, user }: { token: JWT; user?: AdapterUser }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.sub = user.id.toString();
       }
       return token;
     },
-    async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      // Redirect to the chat page after login
+    async redirect({ url, baseUrl }) {
       return baseUrl + '/';
     },
   },

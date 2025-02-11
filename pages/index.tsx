@@ -85,9 +85,10 @@ const HomeContent = (props: Props) => {
           // Initialize arrays for each chat
           const chatsWithArrays = data.data.activeChats.map(chat => ({
             ...chat,
-            messages: chat.messages || [],
-            chat_history: chat.chat_history || []
-          }));
+            messages: Array.isArray(chat.messages) ? chat.messages : [],
+            chat_history: Array.isArray(chat.chat_history) ? chat.chat_history : []
+          })).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()); // Sort by updated_at
+        
           setChatSessions(chatsWithArrays);
         } else {
           console.error('Error fetching chats:', data.message);
@@ -114,13 +115,13 @@ const HomeContent = (props: Props) => {
     }
     const newChatId = Date.now().toString();
     setChatSessions([
-      { id: newChatId, name: 'New Chat', messages: [], model: 'ChatGPT' },
+      { id: newChatId, chat_id: newChatId, chat_title: 'New Chat', messages: [], model: 'ChatGPT' },
       ...chatSessions,
     ]);
-    setCurrentChatId(newChatId);
+    setCurrentChatId(newChatId); // Ensure the new chat is selected
     setSelectedModel('ChatGPT');
     setTimeout(() => {
-      inputRef.current?.focus();
+      inputRef.current?.focus(); // Ensure focus on input field
     }, 0);
   };
 
@@ -134,56 +135,74 @@ const HomeContent = (props: Props) => {
           id: chatId,
           chat_id: chatId,
           chat_title: 'New Chat',
-          messages: [], // Initialize empty messages array
-          chat_history: [], // Initialize empty chat_history array
+          messages: [],
+          chat_history: [],
           model: selectedModel,
-          userId: session?.user?.id || '',
+          user_id: session?.user?.id || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          deleted: false,
         };
-        setChatSessions([newChat, ...chatSessions]);
+
+        setChatSessions(prevChats => [newChat, ...prevChats]);
         setCurrentChatId(chatId);
 
+        // Only save the chat structure, without messages
         await fetch('/api/saveChats', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ chats: [newChat] }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            chats: [{
+              ...newChat,
+              messages: [], // Ensure no messages are sent with new chat
+              chat_history: [] // Ensure no history is sent with new chat
+            }] 
+          }),
         });
       }
 
       const newMessage = {
-        userInput: input,
+        userInput: input.trim(),
         apiResponse: '',
         inputType: 'Text',
         outputType: 'Text',
         timestamp: new Date().toISOString(),
         contextId: '',
+        user_input: input.trim(), // Add this for compatibility
       };
 
-      // Update local state immediately for user input
-      setChatSessions(prevSessions => 
-        prevSessions.map(chat =>
+      // Update local state immediately before the API call
+      setChatSessions((prevChats) =>
+        prevChats.map(chat =>
           chat.chat_id === chatId
             ? {
                 ...chat,
-                messages: Array.isArray(chat.messages) ? [...chat.messages, newMessage] : [newMessage],
-                chat_history: Array.isArray(chat.chat_history) 
-                  ? [...chat.chat_history, { user_input: input, api_response: '' }]
-                  : [{ user_input: input, api_response: '' }]
+                messages: [...(chat.messages || []), newMessage],
+                chat_history: [...(chat.chat_history || []), newMessage],
+                updated_at: new Date().toISOString(),
               }
             : chat
-        )
+        ).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       );
 
       setInput('');
 
-      await fetch('/api/saveMessage', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, message: newMessage }),
-      });
+      try {
+        const response = await fetch('/api/saveMessage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, message: newMessage }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save message');
+        }
+
+        // No need to update state again since we already showed the message
+      } catch (error) {
+        console.error('Error saving message:', error);
+        // Optionally revert the optimistic update on error
+      }
     }
   };
 
@@ -242,9 +261,16 @@ const HomeContent = (props: Props) => {
         throw new Error('Failed to save chat name');
       }
 
-      setChatSessions(chatSessions.map((chat) =>
-        chat.chat_id === chatId ? { ...chat, chat_title: newChatName } : chat
-      ));
+      setChatSessions(prevSessions =>
+        prevSessions
+          .map(chat =>
+            chat.chat_id === chatId
+              ? { ...chat, chat_title: newChatName, updated_at: new Date().toISOString() }
+              : chat
+          )
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()) // Sort by updated_at
+      );
+      
       setEditingChatId(null);
       setChatNameError(false);
     } catch (error) {
@@ -296,7 +322,12 @@ const HomeContent = (props: Props) => {
   };
 
   const saveChatsToDB = async () => {
-    const chatsToSave = chatSessions.filter((chat) => chat.messages.length > 0);
+    const chatsToSave = chatSessions.map(chat => ({
+      ...chat,
+      messages: [], // Don't save messages here, they're already saved by saveMessage
+      chat_history: [] // Don't save history here
+    }));
+    
     await fetch('/api/saveChats', {
       method: 'POST',
       headers: {
@@ -310,18 +341,32 @@ const HomeContent = (props: Props) => {
     (chat) => chat.chat_id === currentChatId
   );
 
-  // Ensure the variable is defined and is an array
-  const items = props.items || []; // Replace `props.items` with the actual variable
-
-  const item = items.find((item) => item.id === someId); // Replace `someId` with the actual ID you are looking for
-
-  if (status === 'loading') {
-    return <div>Loading...</div>;
-  }
-
-  if (status === 'unauthenticated') {
-    return null;
-  }
+  const renderMessages = () => {
+    if (!currentChat) return <div className="text-gray-500">Select a chat to view messages</div>;
+    
+    // Combine and deduplicate messages from both arrays
+    const allMessages = [
+      ...(currentChat.messages || []),
+      ...(currentChat.chat_history || [])
+    ].filter((msg, index, self) => 
+      index === self.findIndex(m => 
+        m.timestamp === msg.timestamp
+      )
+    ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    if (allMessages.length === 0) {
+      return <div className="text-gray-500">No messages in this chat</div>;
+    }
+  
+    return allMessages.map((message, index) => (
+      <div key={message.timestamp} className="mb-4 p-4 bg-gray-200 rounded">
+        <p className="mb-2">{message.userInput || message.user_input}</p>
+        {(message.apiResponse || message.api_response) && (
+          <p>{message.apiResponse || message.api_response}</p>
+        )}
+      </div>
+    ));
+  };
 
   return (
     <div className="flex h-screen">
@@ -459,16 +504,7 @@ const HomeContent = (props: Props) => {
           </div>
         </div>
         <div className="flex-grow p-4 overflow-y-auto">
-          {currentChat ? (
-            currentChat.chat_history?.map((message, index) => (
-              <div key={index} className="mb-4 p-4 bg-gray-200 rounded">
-                <p>{message.user_input}</p>
-                <p>{message.api_response}</p>
-              </div>
-            ))
-          ) : (
-            <div className="text-gray-500">Select a chat to view messages</div>
-          )}
+          {renderMessages()}
         </div>
         <div className="p-4 border-t">
           <input

@@ -91,32 +91,23 @@ const HomeContent = (props: Props) => {
         const data = await response.json();
         if (data.success) {
           // Initialize arrays for each chat
-          const chatsWithArrays = data.data.activeChats
-            .map((chat: { messages: any; chat_history: any }) => ({
-              ...chat,
-              messages: Array.isArray(chat.messages) ? chat.messages : [],
-              chat_history: Array.isArray(chat.chat_history)
-                ? chat.chat_history.map((h) =>
-                    typeof h === 'string'
-                      ? {
-                          user_input: h,
-                          api_response: '',
-                          input_type: 'Text',
-                          output_type: 'Text',
-                          timestamp: new Date().toISOString(),
-                          context_id: '',
-                        }
-                      : h
-                  )
-                : [],
-            }))
-            .sort((a: { updated_at: Date }, b: { updated_at: Date }) => {
-              return (
-                new Date(b.updated_at).getTime() -
-                new Date(a.updated_at).getTime()
-              );
-            }); // Sort by updated_at
-
+          const chatsWithArrays = data.data.activeChats.map((chat: { messages: any; chat_history: any; }) => ({
+            ...chat,
+            messages: Array.isArray(chat.messages) ? chat.messages : [],
+            chat_history: Array.isArray(chat.chat_history)
+            ? chat.chat_history.map((h) => typeof h === "string" ? { 
+                user_input: h, 
+                api_response: "", 
+                input_type: "Text", 
+                output_type: "Text", 
+                timestamp: new Date().toISOString(),
+                context_id: "" 
+              } : h)
+            : [],
+          })).sort((a: { updated_at: Date; }, b: { updated_at: Date; }) => {
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          }); // Sort by updated_at
+        
           setChatSessions(chatsWithArrays);
         } else {
           console.error('Error fetching chats:', data.message);
@@ -132,31 +123,24 @@ const HomeContent = (props: Props) => {
 
   const handleStartNewChat = () => {
     // Clean up any existing empty chats first
-    setChatSessions((prev) =>
-      prev.filter(
-        (chat) =>
-          chat.messages?.length > 0 || (chat.chat_history?.length ?? 0) > 0
-      )
-    );
+    setChatSessions(prev => prev.filter(chat => 
+      chat.messages?.length > 0 || (chat.chat_history?.length ?? 0) > 0
+    ));
 
     const newChatId = Date.now().toString();
     // Only update local state, don't save to DB
-    setChatSessions((prevSessions) => [
-      {
-        id: newChatId,
-        chat_id: newChatId,
-        chat_title: 'New Chat',
-        messages: [],
-        model: 'ChatGPT',
-        name: '',
-        updated_at: new Date().toISOString(),
-      },
-      ...prevSessions.filter(
-        (chat) =>
-          chat.messages?.length > 0 || (chat.chat_history?.length ?? 0) > 0
-      ),
-    ]);
-
+    setChatSessions(prevSessions => [{
+      id: newChatId,
+      chat_id: newChatId,
+      chat_title: 'New Chat',
+      messages: [],
+      model: 'ChatGPT',
+      name: '',
+      updated_at: new Date().toISOString()
+    }, ...prevSessions.filter(chat => 
+      chat.messages?.length > 0 || (chat.chat_history?.length ?? 0) > 0
+    )]);
+    
     setCurrentChatId(newChatId);
     setSelectedModel('ChatGPT');
     setTimeout(() => {
@@ -186,7 +170,7 @@ const HomeContent = (props: Props) => {
           deleted: false,
         };
 
-        setChatSessions((prevChats) => [newChat, ...prevChats]);
+        setChatSessions(prevChats => [newChat, ...prevChats]);
         setCurrentChatId(chatId);
       }
 
@@ -202,32 +186,26 @@ const HomeContent = (props: Props) => {
 
       // Update local state first
       setChatSessions((prevChats) =>
-        prevChats
-          .map((chat) =>
-            chat.chat_id === chatId
-              ? {
-                  ...chat,
-                  messages: [...(chat.messages || []), newMessage],
-                  chat_history: [
-                    ...(chat.chat_history || []),
-                    {
-                      user_input: newMessage.userInput,
-                      api_response: newMessage.apiResponse,
-                      input_type: newMessage.inputType,
-                      output_type: newMessage.outputType,
-                      timestamp: newMessage.timestamp,
-                      context_id: newMessage.contextId,
-                    },
-                  ],
-                  updated_at: new Date().toISOString(),
-                }
-              : chat
-          )
-          .sort(
-            (a, b) =>
-              new Date(b.updated_at).getTime() -
-              new Date(a.updated_at).getTime()
-          )
+        prevChats.map(chat =>
+          chat.chat_id === chatId
+            ? {
+                ...chat,
+                messages: [...(chat.messages || []), newMessage],
+                chat_history: [
+                  ...(chat.chat_history || []),
+                  {
+                    user_input: newMessage.userInput,
+                    api_response: newMessage.apiResponse,
+                    input_type: newMessage.inputType,
+                    output_type: newMessage.outputType,
+                    timestamp: newMessage.timestamp,
+                    context_id: newMessage.contextId
+                  }
+                ],
+                updated_at: new Date().toISOString(),
+              }
+            : chat
+        ).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       );
 
       setInput('');
@@ -238,17 +216,15 @@ const HomeContent = (props: Props) => {
           await fetch('/api/saveChats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chats: [
-                {
-                  chat_id: chatId,
-                  chat_title: 'New Chat',
-                  user_id: session?.user?.id,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  deleted: false,
-                },
-              ],
+            body: JSON.stringify({ 
+              chats: [{
+                chat_id: chatId,
+                chat_title: 'New Chat',
+                user_id: session?.user?.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                deleted: false,
+              }] 
             }),
           });
         }
@@ -314,9 +290,9 @@ const HomeContent = (props: Props) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          chatId,
-          chatTitle: newChatName,
+        body: JSON.stringify({ 
+          chatId, 
+          chatTitle: newChatName 
         }),
       });
 
@@ -324,26 +300,16 @@ const HomeContent = (props: Props) => {
         throw new Error('Failed to save chat name');
       }
 
-      setChatSessions(
-        (prevSessions) =>
-          prevSessions
-            .map((chat) =>
-              chat.chat_id === chatId
-                ? {
-                    ...chat,
-                    chat_title: newChatName,
-                    name: newChatName,
-                    updated_at: new Date().toISOString(),
-                  }
-                : chat
-            )
-            .sort(
-              (a, b) =>
-                new Date(b.updated_at).getTime() -
-                new Date(a.updated_at).getTime()
-            ) // Sort by updated_at
+      setChatSessions(prevSessions =>
+        prevSessions
+          .map(chat =>
+            chat.chat_id === chatId
+              ? { ...chat, chat_title: newChatName, name: newChatName, updated_at: new Date().toISOString() }
+              : chat
+          )
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()) // Sort by updated_at
       );
-
+      
       setEditingChatId(null);
       setChatNameError(false);
     } catch (error) {
@@ -365,18 +331,14 @@ const HomeContent = (props: Props) => {
         throw new Error('Failed to delete chat');
       }
 
-      // Update local state after successful deletion
-      setChatSessions(
-        (prevSessions) =>
-          prevSessions
-            .filter((chat) => chat.chat_id !== chatId) // Remove the deleted chat
-            .sort(
-              (a, b) =>
-                new Date(b.updated_at).getTime() -
-                new Date(a.updated_at).getTime()
-            ) // Ensure sorting is maintained
-      );
+// Update local state after successful deletion
+setChatSessions(prevSessions => 
+  prevSessions
+    .filter(chat => chat.chat_id !== chatId) // Remove the deleted chat
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()) // Ensure sorting is maintained
+);
 
+      
       if (currentChatId === chatId) {
         setCurrentChatId(null);
       }
@@ -404,17 +366,13 @@ const HomeContent = (props: Props) => {
   const saveChatsToDB = async () => {
     // Only save chats that have messages
     const chatsToSave = chatSessions
-      .filter(
-        (chat) =>
-          (chat.messages?.length ?? 0) > 0 ||
-          (chat.chat_history?.length ?? 0) > 0
-      )
-      .map((chat) => ({
+      .filter(chat => (chat.messages?.length ?? 0) > 0 || (chat.chat_history?.length ?? 0) > 0)
+      .map(chat => ({
         ...chat,
         messages: [], // Don't save messages here, they're already saved by saveMessage
-        chat_history: [], // Don't save history here
+        chat_history: [] // Don't save history here
       }));
-
+    
     if (chatsToSave.length > 0) {
       await fetch('/api/saveChats', {
         method: 'POST',
@@ -431,60 +389,48 @@ const HomeContent = (props: Props) => {
   );
 
   const renderMessages = () => {
-    if (!currentChat)
-      return (
-        <div className="text-gray-500">Select a chat to view messages</div>
-      );
-
+    if (!currentChat) return <div className="text-gray-500">Select a chat to view messages</div>;
+    
     // Combine and deduplicate messages from both arrays
     const allMessages = [
-      ...(currentChat.messages || []).map((msg) => ({
+      ...(currentChat.messages || []).map(msg => ({
         ...msg,
-        userInput: msg.userInput,
+        userInput: msg.userInput, 
         apiResponse: msg.apiResponse,
       })),
-      ...(currentChat.chat_history || []).map((msg) => ({
+      ...(currentChat.chat_history || []).map(msg => ({
         ...msg,
         userInput: msg.user_input, // Normalize to `userInput`
         apiResponse: msg.api_response, // Normalize to `apiResponse`
         inputType: msg.input_type,
         outputType: msg.output_type,
         contextId: msg.context_id,
-      })),
-    ]
-      .filter(
-        (msg, index, self) =>
-          index === self.findIndex((m) => m.timestamp === msg.timestamp)
+      }))
+    ].filter((msg, index, self) => 
+      index === self.findIndex(m => 
+        m.timestamp === msg.timestamp
       )
-      .sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
+    ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    
     if (allMessages.length === 0) {
       return <div className="text-gray-500">No messages in this chat</div>;
     }
-
+  
     return allMessages.map((message, index) => {
       const normalizedMessage = {
         userInput: (message as any).userInput ?? (message as any).user_input,
-        apiResponse:
-          (message as any).apiResponse ?? (message as any).api_response,
+        apiResponse: (message as any).apiResponse ?? (message as any).api_response,
         timestamp: message.timestamp,
       };
-
+    
       return (
-        <div
-          key={normalizedMessage.timestamp}
-          className="mb-4 p-4 bg-gray-200 rounded"
-        >
+        <div key={normalizedMessage.timestamp} className="mb-4 p-4 bg-gray-200 rounded">
           <p className="mb-2">{normalizedMessage.userInput}</p>
-          {normalizedMessage.apiResponse && (
-            <p>{normalizedMessage.apiResponse}</p>
-          )}
+          {normalizedMessage.apiResponse && <p>{normalizedMessage.apiResponse}</p>}
         </div>
       );
-    });
+    });    
   };
 
   return (
@@ -503,8 +449,12 @@ const HomeContent = (props: Props) => {
           <ul>
             {(chatSessions || []).map((chat) => (
               <li
-                key={chat.chat_id} // Ensure unique key
-                className="mb-2 p-2 bg-white rounded shadow flex justify-between items-center"
+                key={chat.chat_id}
+                className={`mb-2 p-2 rounded shadow flex justify-between items-center ${
+                  currentChatId === chat.chat_id
+                    ? 'bg-blue-100 border-l-4 border-blue-500' // Highlight active chat
+                    : 'bg-white hover:bg-gray-50'
+                }`}
               >
                 {editingChatId === chat.chat_id ? (
                   <div className="flex flex-col w-full">
@@ -515,7 +465,9 @@ const HomeContent = (props: Props) => {
                       onChange={(e) => setNewChatName(e.target.value)}
                       onBlur={() => handleSaveChatName(chat.chat_id)}
                       onKeyDown={handleKeyDown}
-                      className={`truncate w-full text-left p-1 border rounded ${chatNameError ? 'border-red-500' : ''}`}
+                      className={`truncate w-full text-left p-1 border rounded ${
+                        chatNameError ? 'border-red-500' : ''
+                      }`}
                     />
                     {chatNameError && (
                       <span className="text-red-500 text-sm">
@@ -526,11 +478,16 @@ const HomeContent = (props: Props) => {
                 ) : (
                   <button
                     onClick={() => handleSelectChat(chat.chat_id)}
-                    className="truncate w-full text-left pr-8"
+                    className={`truncate w-full text-left pr-8 ${
+                      currentChatId === chat.chat_id
+                        ? 'font-medium text-blue-700' // Active chat text styling
+                        : 'text-gray-700 hover:text-gray-900'
+                    }`}
                   >
                     {chat.chat_title || 'Untitled Chat'}
                   </button>
                 )}
+                {/* Modify the menu button to be disabled for unsaved chats */}
                 <div
                   className="relative"
                   ref={(el) => {
@@ -538,8 +495,18 @@ const HomeContent = (props: Props) => {
                   }}
                 >
                   <button
-                    className="text-gray-500 hover:text-gray-700"
-                    onClick={() => chat.chat_id && toggleMenu(chat.chat_id)}
+                    className={`text-gray-500 ${
+                      chat.messages?.length === 0 && chat.chat_history?.length === 0
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:text-gray-700'
+                    }`}
+                    onClick={() => {
+                      // Only toggle menu if chat has messages
+                      if (chat.messages?.length > 0 || (chat.chat_history?.length ?? 0) > 0) {
+                        toggleMenu(chat.chat_id);
+                      }
+                    }}
+                    disabled={chat.messages?.length === 0 && chat.chat_history?.length === 0}
                   >
                     <svg
                       className="w-6 h-6"
@@ -556,7 +523,8 @@ const HomeContent = (props: Props) => {
                       ></path>
                     </svg>
                   </button>
-                  {menuVisible === chat.chat_id && (
+                  {menuVisible === chat.chat_id && 
+                   (chat.messages?.length > 0 || (chat.chat_history?.length ?? 0) > 0) && (
                     <div className="absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg z-10">
                       <button
                         onClick={() => handleEditChat(chat.chat_id)}
@@ -622,7 +590,9 @@ const HomeContent = (props: Props) => {
             </button>
           </div>
         </div>
-        <div className="flex-grow p-4 overflow-y-auto">{renderMessages()}</div>
+        <div className="flex-grow p-4 overflow-y-auto">
+          {renderMessages()}
+        </div>
         <div className="p-4 border-t">
           <input
             type="text"

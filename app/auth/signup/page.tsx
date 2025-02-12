@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
+import styles from './signup.module.css';
 
 export default function SignUp() {
   const router = useRouter();
@@ -16,9 +17,6 @@ export default function SignUp() {
     setError('');
 
     try {
-      console.log('Submitting email:', email);
-      console.log('Submitting password:', password);
-
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -27,14 +25,21 @@ export default function SignUp() {
 
       if (response.ok) {
         const user = await response.json();
-        await signIn('credentials', {
-          username: user.email,
-          password,
-          callbackUrl: '/user',
+        // Use the same credential fields as defined in [...nextauth]
+        const result = await signIn('credentials', {
+          email: user.email,
+          password: password,
+          redirect: false,
         });
+
+        if (result?.error) {
+          setError(result.error);
+        } else if (result?.ok) {
+          router.push('/');
+        }
       } else {
         const errorData = await response.json();
-        setError(errorData.message || 'Registration failed.');
+        setError(errorData.error || 'Registration failed.');
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -43,8 +48,8 @@ export default function SignUp() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="space-y-6 w-full max-w-md p-6">
+    <div className={styles.container}>
+      <div className={styles.formContainer}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email">Email</label>
@@ -53,7 +58,7 @@ export default function SignUp() {
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="block w-full border p-2"
+              className={styles.input}
               required
             />
           </div>
@@ -64,23 +69,20 @@ export default function SignUp() {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full border p-2"
+              className={styles.input}
               required
             />
           </div>
-          {error && <div className="text-red-500">{error}</div>}
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white p-2 rounded"
-          >
+          {error && <div className={styles.error}>{error}</div>}
+          <button type="submit" className={styles.button}>
             Sign Up
           </button>
         </form>
 
         <div className="text-center mt-4">
           <p>Already have an account?</p>
-          <Link href="/auth/signin" className="text-blue-500 hover:underline">
-            Sign in here
+          <Link href="/auth/signin">
+            <span className={styles.link}>Sign in here</span>
           </Link>
         </div>
       </div>

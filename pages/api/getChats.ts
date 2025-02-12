@@ -8,7 +8,14 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    const session = await getServerSession(req, res, authOptions);
+    // Accept test user ID header in non-production environments
+    const testUserId = process.env.NODE_ENV !== 'production' ? 
+      req.headers['x-test-user-id'] as string : 
+      undefined;
+
+    const session = testUserId ? 
+      { user: { id: testUserId } } : 
+      await getServerSession(req, res, authOptions);
 
     if (!session?.user?.id) {
       return res

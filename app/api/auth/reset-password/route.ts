@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';  // Add Prisma type import
 import { Resend } from 'resend';
 
 const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Ensure EMAIL_FROM exists
+const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
 
 export async function POST(req: Request) {
   try {
@@ -12,21 +15,22 @@ export async function POST(req: Request) {
     // Generate a reset token
     const resetToken = Math.random().toString(36).substring(2, 15);
 
-    // Save reset token in the database
+    // Update user with type casting
     await prisma.user.update({
       where: { email },
-      data: { resetToken },
+      data: {
+        resetToken: resetToken
+      } as Prisma.UserUpdateInput
     });
 
     console.log('🔹 Sending reset email via Resend API...');
 
-    // Send reset email with debug mode enabled
+    // Send reset email without debug mode
     const response = await resend.emails.send({
-      from: process.env.EMAIL_FROM,
+      from: EMAIL_FROM,
       to: email,
       subject: 'Password Reset Request',
-      text: `Click the link to reset your password: http://localhost:3000/auth/reset-password/${resetToken}`,
-      debug: true, // ✅ Enables detailed logging
+      text: `Click the link to reset your password: http://localhost:3000/auth/reset-password/${resetToken}`
     });
 
     console.log('✅ Resend Response:', response);

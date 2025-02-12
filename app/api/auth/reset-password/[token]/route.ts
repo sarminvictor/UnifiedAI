@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';  // Add Prisma type import
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -21,9 +21,13 @@ export async function POST(
       );
     }
 
-    // Find user by resetToken
+    // Find user by reset token using string comparison
     const user = await prisma.user.findFirst({
-      where: { resetToken: params.token },
+      where: {
+        resetToken: {
+          equals: params.token,
+        }
+      } as Prisma.UserWhereInput
     });
 
     if (!user) {
@@ -50,18 +54,22 @@ export async function POST(
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log('Hashed password:', hashedPassword);
 
-    // Update password & remove resetToken
+    // Update password & reset token with type casting
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword, resetToken: null },
+      data: {
+        password: hashedPassword,
+        resetToken: null
+      } as Prisma.UserUpdateInput
     });
 
     console.log('Password reset successful for user:', user.email);
     return NextResponse.json({ message: 'Password successfully updated!' });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error resetting password:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { message: 'Error resetting password.', error: error.message },
+      { message: 'Error resetting password.', error: errorMessage },
       { status: 500 }
     );
   }

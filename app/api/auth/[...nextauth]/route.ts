@@ -9,31 +9,42 @@ export const authOptions: AuthOptions = {
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        username: { label: 'Email', type: 'email' }, // Revert to email
+        email: { label: 'Email', type: 'email' },     // Changed from username to email
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
-          throw new Error('Missing credentials');
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            console.log('Missing credentials:', credentials);
+            throw new Error('Missing credentials');
+          }
+
+          const user = await prisma.user.findFirst({
+            where: {
+              email: {
+                equals: credentials.email.toLowerCase(),
+                mode: 'insensitive'
+              }
+            }
+          });
+
+          if (!user || !user.password) {
+            console.log('User not found or missing password:', credentials.email);
+            throw new Error('Invalid email or password');
+          }
+
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) {
+            console.log('Invalid password for user:', credentials.email);
+            throw new Error('Invalid email or password');
+          }
+
+          console.log('Login successful for:', credentials.email);
+          return { id: user.id, email: user.email };
+        } catch (error) {
+          console.error('Auth error:', error);
+          throw error;
         }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.username }, // Revert to email
-        });
-
-        if (!user) {
-          throw new Error('Invalid email or password');
-        }
-
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-        if (!isValid) {
-          throw new Error('Invalid email or password');
-        }
-
-        return { id: user.id, email: user.email };
       },
     }),
 
@@ -85,6 +96,7 @@ export const authOptions: AuthOptions = {
       return true; // Allow sign-in to proceed
     },
   },
+  debug: true, // Enable debug messages
 };
 
 export const GET = NextAuth(authOptions);

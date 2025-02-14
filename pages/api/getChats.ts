@@ -31,14 +31,24 @@ export default async function handler(
     const activeChats = await prisma.chat.findMany({
       where: {
         user_id: session.user.id,
-        deleted: false, // Only get non-deleted chats
+        deleted: false,
       },
       include: {
         chat_history: {
           orderBy: {
             timestamp: 'asc',
           },
-          distinct: ['timestamp'], // Ensure no duplicate messages
+          select: {
+            history_id: true,
+            user_input: true,
+            api_response: true,
+            input_type: true,
+            output_type: true,
+            timestamp: true,
+            context_id: true,
+            model: true,
+            credits_deducted: true
+          }
         },
       },
       orderBy: {
@@ -51,23 +61,16 @@ export default async function handler(
     // Transform the data to match the frontend structure
     const transformedChats = activeChats.map((chat) => ({
       ...chat,
-      messages: chat.chat_history
-        .filter(
-          (msg, index, self) =>
-            // Additional deduplication by timestamp
-            index ===
-            self.findIndex(
-              (m) => m.timestamp.getTime() === msg.timestamp.getTime()
-            )
-        )
-        .map((msg) => ({
-          userInput: msg.user_input,
-          apiResponse: msg.api_response,
-          inputType: msg.input_type,
-          outputType: msg.output_type,
-          timestamp: msg.timestamp.toISOString(),
-          contextId: msg.context_id,
-        })),
+      messages: chat.chat_history.map(msg => ({
+        userInput: msg.user_input || '',
+        apiResponse: msg.api_response || '',
+        inputType: msg.input_type || 'Text',
+        outputType: msg.output_type || 'Text',
+        timestamp: msg.timestamp.toISOString(),
+        contextId: msg.context_id,
+        model: msg.model,
+        creditsDeducted: msg.credits_deducted
+      }))
     }));
 
     res.status(200).json({

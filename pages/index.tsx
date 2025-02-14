@@ -46,6 +46,7 @@ const HomeContent = (props: Props) => {
   const [newChatName, setNewChatName] = useState('');
   const [chatNameError, setChatNameError] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Add loading state
+  const [credits, setCredits] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -95,23 +96,19 @@ const HomeContent = (props: Props) => {
         const response = await fetch('/api/getChats');
         const data = await response.json();
         if (data.success) {
-          const chatsWithArrays = data.data.activeChats.map((chat: { chat_history: any[] }) => {
-            const messages = chat.chat_history.map(h => ({
-              userInput: h.user_input || '',
-              apiResponse: h.api_response || '',
-              inputType: h.input_type || 'Text',
-              outputType: h.output_type || 'Text',
-              timestamp: h.timestamp,
-              contextId: h.context_id,
-              model: h.model, // Map the model
-              creditsDeducted: h.credits_deducted, // Map the credits
-            }));
-
-            return {
-              ...chat,
-              messages,
-            };
-          }).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+          const chatsWithArrays = data.data.activeChats.map((chat: any) => ({
+            ...chat,
+            messages: chat.messages.map((msg: any) => ({
+              userInput: msg.userInput || '',
+              apiResponse: msg.apiResponse || '',
+              inputType: msg.inputType || 'Text',
+              outputType: msg.outputType || 'Text',
+              timestamp: msg.timestamp,
+              contextId: msg.contextId,
+              model: msg.model,
+              creditsDeducted: msg.creditsDeducted
+            }))
+          }));
 
           setChatSessions(chatsWithArrays);
         }
@@ -128,9 +125,27 @@ const HomeContent = (props: Props) => {
     scrollToBottom();
   }, [chatSessions]); // Scrolls whenever `chatSessions` updates (new messages)
 
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchUserCredits();
+    }
+  }, [status]);
+
   const scrollToBottom = () => {
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const fetchUserCredits = async () => {
+    try {
+      const response = await fetch("/api/getUserCredits");
+      const data = await response.json();
+      if (data.success) {
+        setCredits(data.credits_remaining);
+      }
+    } catch (error) {
+      console.error("Error fetching credits:", error);
     }
   };
 
@@ -162,7 +177,7 @@ const HomeContent = (props: Props) => {
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || credits === 0) return;
 
     let chatId = currentChatId;
     let isNewChat = false;
@@ -203,6 +218,11 @@ const HomeContent = (props: Props) => {
       const data = await response.json();
       if (!data.success || !data.aiMessage.api_response) {
         throw new Error("Failed to get API response");
+      }
+
+      // Update credits immediately when response is received
+      if (data.credits_remaining !== undefined) {
+        setCredits(data.credits_remaining);
       }
 
       const aiMessage = {
@@ -387,25 +407,27 @@ setChatSessions(prevSessions =>
       const isUserMessage = !!message.userInput;
       const isLastMessage = index === allMessages.length - 1;
 
+      // Convert Prisma Decimal to number and round for display only
+      const creditsNumber = message.creditsDeducted ? 
+        parseFloat(message.creditsDeducted.toString()) : 0;
+      const roundedCredits = Math.ceil(creditsNumber * 100) / 100; // Round to 2 decimal places
+
       return (
         <div
           key={message.timestamp}
           className={`mb-4 flex ${isUserMessage ? "justify-end" : "justify-start"}`}
-          ref={isLastMessage ? chatEndRef : null} // Auto-scroll to last message
+          ref={isLastMessage ? chatEndRef : null}
         >
-          <div
-            className={`p-3 rounded-lg max-w-md ${
-              isUserMessage ? "bg-gray-300 text-black" : "bg-transparent text-gray-800"
-            }`}
-          >
-            {/* Prevent empty message from rendering */}
+          <div className={`p-3 rounded-lg max-w-md ${
+            isUserMessage ? "bg-gray-300 text-black" : "bg-transparent text-gray-800"
+          }`}>
             {message.userInput && <p>{message.userInput}</p>}
             {message.apiResponse && <p>{message.apiResponse}</p>}
 
-            {/* Show Model & Credits for AI Responses */}
+            {/* Show rounded credits in UI */}
             {!isUserMessage && message.model && message.creditsDeducted !== undefined && (
               <p className="text-xs text-gray-500 mt-1 text-right">
-                Model: {message.model} | Credits: {message.creditsDeducted.toFixed(2)}
+                Model: {message.model} | Credits: {roundedCredits.toFixed(2)}
               </p>
             )}
           </div>
@@ -530,6 +552,16 @@ setChatSessions(prevSessions =>
           <div className="border-t pt-4 mt-4">
             <p className="text-sm text-gray-600">Logged in as:</p>
             <p className="text-sm font-semibold">{session?.user?.email}</p>
+
+            {/* Display Credits */}
+            <button
+              onClick={() => router.push("/subscribe")}
+              className="mt-2 text-lg font-semibold text-blue-600 hover:underline"
+            >
+              {credits !== null 
+                ? `${Math.ceil(parseFloat(credits.toString()) * 100) / 100} credits` 
+                : "Loading..."}
+            </button>
           </div>
           <button
             className="w-full bg-red-500 text-white py-2 rounded mt-4 hover:bg-red-600 transition"
@@ -590,19 +622,25 @@ setChatSessions(prevSessions =>
             onKeyDown={handleKeyDown}
             ref={inputRef}
             className="w-full p-2 border rounded mb-2"
-            placeholder={isLoading ? 'Waiting for AI response...' : 'Type a message...'}
-            disabled={isLoading || !currentChatId}
+            placeholder={
+              credits === 0
+                ? "No credits left! Buy more to continue."
+                : isLoading
+                ? "Waiting for AI response..."
+                : "Type a message..."
+            }
+            disabled={isLoading || !currentChatId || credits === 0}
           />
           <button
             className={`w-full py-2 rounded transition ${
-              isLoading || !input.trim() || !currentChatId
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
+              isLoading || !input.trim() || !currentChatId || credits === 0
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-500 text-white hover:bg-blue-600"
             }`}
-            onClick={handleSendMessage}
-            disabled={isLoading || !input.trim() || !currentChatId}
+            onClick={credits === 0 ? () => router.push("/subscribe") : handleSendMessage}
+            disabled={isLoading || !input.trim() || !currentChatId || credits === 0}
           >
-            {isLoading ? 'Loading...' : 'Send'}
+            {credits === 0 ? "Buy More Credits" : isLoading ? "Loading..." : "Send"}
           </button>
         </div>
       </div>

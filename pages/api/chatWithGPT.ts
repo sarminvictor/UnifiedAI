@@ -8,46 +8,47 @@ import { GoogleGenerativeAI } from "@langchain/google-genai";
 import { DeepSeek } from "@langchain/deepseek";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { LLMChain } from "langchain/chains";
-import { v4 as uuidv4 } from 'uuid';
+
+// Define token rates as a global constant
+const TOKEN_RATES: Record<string, number> = {
+  "ChatGPT": 1278,     // 1 credit = 1,278 tokens (GPT-4o)
+  "Claude": 888,       // 1 credit = 888 tokens (Claude 3.5 Sonnet)
+  "Gemini": 42624,     // 1 credit = 42,624 tokens
+  "DeepSeek": 23164,   // 1 credit = 23,164 tokens
+};
 
 const getAIModel = (modelName: string) => {
   switch (modelName) {
     case "ChatGPT":
-      return new OpenAI({
-        openAIApiKey: process.env.OPENAI_API_KEY,
-        temperature: 0.7,
-        maxTokens: 500,
-      });
+      return new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY, temperature: 0.7, maxTokens: 500 });
     case "Claude":
-      return new ChatAnthropic({
-        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-        temperature: 0.7,
-      });
+      return new ChatAnthropic({ anthropicApiKey: process.env.ANTHROPIC_API_KEY, temperature: 0.7 });
     case "Gemini":
-      return new GoogleGenerativeAI({
-        googleApiKey: process.env.GOOGLE_API_KEY,
-        temperature: 0.7,
-      });
+      return new GoogleGenerativeAI({ googleApiKey: process.env.GOOGLE_API_KEY, temperature: 0.7 });
     case "DeepSeek":
-      return new DeepSeek({
-        deepSeekApiKey: process.env.DEEPSEEK_API_KEY,
-        temperature: 0.7,
-      });
+      return new DeepSeek({ deepSeekApiKey: process.env.DEEPSEEK_API_KEY, temperature: 0.7 });
     default:
       throw new Error("Unsupported AI Model");
   }
 };
 
 const calculateCredits = (model: string, tokensUsed: number): number => {
-  const tokenRates: Record<string, number> = {
-    "GPT-4o": 1278,
-    "GPT-4o mini": 21312,
-    "Gemini": 42624,
-    "DeepSeek": 23164,
-    "Claude 3.5 Sonnet": 888,
-  };
-  const rate = tokenRates[model] || 1;
-  return tokensUsed > 0 ? tokensUsed / rate : 1;
+  // Get tokens per credit for the model
+  const tokensPerCredit = TOKEN_RATES[model];
+  if (!tokensPerCredit) {
+    console.warn(`⚠️ No token rate found for model ${model}, using GPT-4o rate`);
+    return tokensUsed / TOKEN_RATES["ChatGPT"]; // Default to GPT-4o rate
+  }
+
+  // Calculate credits with high precision
+  const credits = tokensUsed / tokensPerCredit;
+  console.log(`💰 Credit calculation for ${model}:`, {
+    tokensUsed,
+    tokensPerCredit,
+    credits: credits.toFixed(6)
+  });
+
+  return credits;
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -66,40 +67,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log("🔹 Fetching chat history for context...");
+    console.log("🔹 Checking user credits...");
 
-    let chat = await prisma.chat.findUnique({ where: { chat_id: chatId } });
-    if (!chat) {
-      chat = await prisma.chat.create({
-        data: {
-          chat_id: chatId,
-          chat_title: 'New Chat',
-          user_id: session.user.id,
-          created_at: new Date(),
-          updated_at: new Date(),
-          deleted: false,
-        },
+    // Early credit check
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { credits_remaining: true } // Only select needed field
+    });
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
       });
     }
 
-    let chatSummary = chat?.chat_summary || "";
-    
-    // ✅ Fetch and extract chat history
+    // Strict credit check
+    if (user.credits_remaining <= 0) {
+      console.log(`❌ Insufficient credits for user ${session.user.id}: ${user.credits_remaining}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient credits. Please top up to continue.',
+        redirect: '/subscribe',
+        credits_remaining: user.credits_remaining
+      });
+    }
+
+    console.log(`✅ User has ${user.credits_remaining} credits remaining`);
+
+    // Fetch chat history
+    let chat = await prisma.chat.findUnique({ where: { chat_id: chatId } });
+    if (!chat) {
+      chat = await prisma.chat.create({
+        data: { chat_id: chatId, chat_title: 'New Chat', user_id: session.user.id, created_at: new Date(), updated_at: new Date(), deleted: false }
+      });
+    }
+
     const previousMessages = await prisma.chatHistory.findMany({
       where: { chat_id: chatId },
       orderBy: { timestamp: 'asc' },
-      take: 10, // Keep last 10 messages for context
+      take: 10
     });
-
-    // ✅ Initialize message IDs array at the start
-    let contextMessageIds = previousMessages.map(msg => msg.history_id);
-
-    console.log("🔹 Initial Chat Context IDs:", contextMessageIds);
 
     const formattedMessages = previousMessages.map(msg => ["user", msg.user_input] as [string, string]);
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", "You are an AI assistant. Keep responses concise and helpful. Maintain context from the summary."],
-      ["system", `Conversation Summary: ${chatSummary}`],
+      ["system", "You are an AI assistant. Keep responses concise and helpful."],
       ...formattedMessages,
       ["user", userMessage]
     ]);
@@ -108,18 +120,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const chain = new LLMChain({ llm, prompt });
 
     console.log(`🔹 Sending message to ${modelName}...`);
-
-    const userMessageEntry = await prisma.chatHistory.create({
-      data: {
-        chat: { connect: { chat_id: chatId } },
-        user_input: userMessage,
-        api_response: "",
-        input_type: 'Text',
-        output_type: 'Text',
-        timestamp: new Date(),
-        context_id: chatId,
-      },
-    });
 
     let tokensUsed = 0, promptTokens = 0, completionTokens = 0;
     let response;
@@ -130,76 +130,99 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           tokensUsed = output.llmOutput?.tokenUsage?.totalTokens || 0;
           promptTokens = output.llmOutput?.tokenUsage?.promptTokens || 0;
           completionTokens = output.llmOutput?.tokenUsage?.completionTokens || 0;
-          console.log("✅ Token usage in callback:", {
+          
+          // Detailed token logging
+          console.log("🔢 Token Usage Details:", {
             total: tokensUsed,
             prompt: promptTokens,
-            completion: completionTokens
+            completion: completionTokens,
+            model: modelName
           });
         }
       };
-
       response = await chain.call({}, { callbacks: [callbacks] });
     } else {
+      // For non-OpenAI models, estimate tokens
       response = await chain.call({});
+      // Estimate tokens based on response length
+      tokensUsed = Math.ceil((userMessage.length + (response.text?.length || 0)) / 4);
+      promptTokens = Math.ceil(userMessage.length / 4);
+      completionTokens = Math.ceil((response.text?.length || 0) / 4);
     }
 
     const apiResponse = response.text?.trim() || "No response received";
 
-    console.log(`✅ ${modelName} Response: ${apiResponse}`);
-
-    // ✅ ADD EXPLICIT LOGGING FOR TOKEN USAGE
-    console.log("🔹 Full Response Object:", JSON.stringify(response, null, 2));
-
-    // ✅ Ensure API details exist before referencing
-    const api = await prisma.aPI.findUnique({ where: { api_name: modelName } });
-
-    if (!api) {
-      console.error("❌ API Model not found in DB");
-      return res.status(400).json({ success: false, message: "Invalid API model" });
-    }
-
-    // ✅ Use the values from the callback
-    const tokenUsage = {
-      totalTokens: tokensUsed,
-      promptTokens: promptTokens,
-      completionTokens: completionTokens
-    };
-
-    console.log(`🔹 Token Usage:`, tokenUsage);
-
-    // ✅ Convert tokens to credits and LOG IT - MOVE THIS UP
+    // Calculate and log credits with token details
     const creditsDeducted = calculateCredits(modelName, tokensUsed);
-    console.log(`🔹 Credits Deducted: ${creditsDeducted}`);
-
-    // ✅ Calculate API cost and LOG IT
-    const apiCost = api.pricing_per_token
-      ? parseFloat((tokensUsed * api.pricing_per_token).toFixed(6))
-      : 0;
-
-    const aiMessageEntry = await prisma.chatHistory.create({
-      data: {
-        chat: { connect: { chat_id: chatId } },
-        user_input: "",
-        api_response: apiResponse,
-        input_type: 'Text',
-        output_type: 'Text',
-        timestamp: new Date(),
-        context_id: chatId,
-        model: modelName,  // ✅ Store model name
-        credits_deducted: creditsDeducted, // Now creditsDeducted is defined
-      },
+    console.log(`💰 Credit Calculation:`, {
+      model: modelName,
+      tokensUsed,
+      promptTokens,
+      completionTokens,
+      creditsDeducted: creditsDeducted.toFixed(6),
+      tokensPerCredit: TOKEN_RATES[modelName] || TOKEN_RATES["ChatGPT"]
     });
 
-    // ✅ Add current message IDs to context
-    contextMessageIds = [
-      ...contextMessageIds,
-      userMessageEntry.history_id,
-      aiMessageEntry.history_id
-    ];
+    // ✅ Get API details for usage log first
+    const api = await prisma.aPI.findUnique({ where: { api_name: modelName } });
+    if (!api) {
+      throw new Error("API model not found");
+    }
 
-    console.log("🔹 Complete message ID context:", contextMessageIds);
+    // Update credit calculation and deduction in transaction
+    if (creditsDeducted > user.credits_remaining) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient credits for this request.',
+        redirect: '/subscribe',
+        credits_remaining: user.credits_remaining,
+        credits_needed: creditsDeducted
+      });
+    }
 
-    // ✅ Store message IDs in APIUsageLog
+    // ✅ Use prisma transaction with exact values (not rounded)
+    const [userMessageEntry, aiMessageEntry, updatedUser] = await prisma.$transaction([
+      // Create user message (unchanged)
+      prisma.chatHistory.create({
+        data: {
+          chat: { connect: { chat_id: chatId } },
+          user_input: userMessage,
+          api_response: "",
+          input_type: 'Text',
+          output_type: 'Text',
+          timestamp: new Date(),
+          context_id: chatId,
+        },
+      }),
+
+      // Create AI response (unchanged)
+      prisma.chatHistory.create({
+        data: {
+          chat: { connect: { chat_id: chatId } },
+          user_input: "",
+          api_response: apiResponse,
+          input_type: 'Text',
+          output_type: 'Text',
+          timestamp: new Date(),
+          context_id: chatId,
+          model: modelName,
+          credits_deducted: creditsDeducted, // Exact value
+        },
+      }),
+
+      // Update user credits - Remove Math.ceil()
+      prisma.user.update({
+        where: { id: session.user.id },
+        data: { 
+          credits_remaining: { 
+            decrement: creditsDeducted // Use exact value, not rounded
+          } 
+        },
+        select: { credits_remaining: true }
+      })
+    ]);
+
+    // ✅ Create API usage log after messages are created
     await prisma.aPIUsageLog.create({
       data: {
         user: { connect: { id: session.user.id } },
@@ -209,27 +232,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         prompt_tokens: promptTokens,
         completion_tokens: completionTokens,
         credits_deducted: creditsDeducted,
-        api_cost: apiCost,
+        api_cost: api.pricing_per_token * tokensUsed,
         usage_type: "AI",
         input_type: "Text",
         output_type: "Text",
-        messages_used: contextMessageIds, // Store only message IDs
+        messages_used: [userMessageEntry.history_id, aiMessageEntry.history_id],
       },
     });
 
-    console.log(`✅ Usage Logged in DB: Tokens Used: ${tokensUsed}, Credits Deducted: ${creditsDeducted}, API Cost: ${apiCost}`);
+    console.log(`✅ Final Usage Stats:`, {
+      model: modelName,
+      tokensTotal: tokensUsed,
+      tokensPrompt: promptTokens,
+      tokensCompletion: completionTokens,
+      creditsDeducted: creditsDeducted.toFixed(6),
+      remainingCredits: updatedUser.credits_remaining.toFixed(6)
+    });
+
+    console.log(`✅ Successfully stored chat history and usage log`);
+    console.log(`✅ Updated user credits: -${creditsDeducted} deducted, ${updatedUser.credits_remaining} remaining`);
 
     return res.status(200).json({
       success: true,
       userMessage: userMessageEntry,
       aiMessage: aiMessageEntry,
       model: modelName,
-      tokensUsed: tokensUsed,
+      tokensUsed,
       creditsDeducted,
+      credits_remaining: updatedUser.credits_remaining
     });
 
   } catch (error) {
-    console.error('❌ Error calling AI model:', error);
+    console.error('❌ Error:', error);
     return res.status(500).json({ success: false, message: (error as Error).message });
   }
 }

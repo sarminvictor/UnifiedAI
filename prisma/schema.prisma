@@ -11,7 +11,7 @@ model User {
   id                  String              @id @default(uuid()) @map("id") // Ensure id is a string
   email               String              @unique
   password            String?
-  credits_remaining   Int                 @default(0)
+  credits_remaining   Decimal             @default(0) @db.Decimal(10,6)  // Changed from Int to Decimal
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   name                String? // Optional field for user's name
@@ -78,7 +78,7 @@ model ChatHistory {
   timestamp        DateTime  @default(now())
   context_id       String
   model            String?   // Add this field
-  credits_deducted Float?    // Add this field
+  credits_deducted Decimal?  @db.Decimal(10,6)  // Changed from Float to Decimal
   chat             Chat      @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
 }
 
@@ -90,7 +90,7 @@ model APIUsageLog {
   tokens_used       Int
   prompt_tokens     Int
   completion_tokens Int
-  credits_deducted  Float
+  credits_deducted  Decimal  @db.Decimal(10,6)  // Changed from Float to Decimal
   api_cost          Float
   usage_type        String
   input_type        String

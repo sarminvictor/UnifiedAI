@@ -7,6 +7,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
+
   try {
     // Accept test user ID header in non-production environments
     const testUserId = process.env.NODE_ENV !== 'production' ? 
@@ -23,10 +27,11 @@ export default async function handler(
         .json({ success: false, message: 'User ID not found' });
     }
 
+    // ✅ Only fetch non-deleted chats
     const activeChats = await prisma.chat.findMany({
       where: {
         user_id: session.user.id,
-        deleted: false,
+        deleted: false, // Only get non-deleted chats
       },
       include: {
         chat_history: {
@@ -40,6 +45,8 @@ export default async function handler(
         updated_at: 'desc',
       },
     });
+
+    console.log(`✅ Found ${activeChats.length} active chats for user ${session.user.id}`);
 
     // Transform the data to match the frontend structure
     const transformedChats = activeChats.map((chat) => ({
@@ -68,7 +75,10 @@ export default async function handler(
       data: { activeChats: transformedChats },
     });
   } catch (error) {
-    console.error('Error fetching chats:', error);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    console.error('❌ Error fetching chats:', error);
+    return res.status(500).json({
+      success: false,
+      message: (error as Error).message
+    });
   }
 }

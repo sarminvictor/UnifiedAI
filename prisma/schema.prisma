@@ -8,100 +8,109 @@ generator client {
 }
 
 model User {
-  id                String      @id @default(uuid()) @map("id") // Ensure id is a string
-  email             String      @unique
-  password          String?
-  credits_remaining Int         @default(0)
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
-  name              String?     // Optional field for user's name
-  resetToken        String?     // Add this field
-  subscriptions     Subscription[]
-  chats             Chat[]
-  api_usage_logs    APIUsageLog[]
+  id                  String              @id @default(uuid()) @map("id") // Ensure id is a string
+  email               String              @unique
+  password            String?
+  credits_remaining   Int                 @default(0)
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  name                String? // Optional field for user's name
+  resetToken          String? // Add this field
+  subscriptions       Subscription[]
+  chats               Chat[]
+  api_usage_logs      APIUsageLog[]
   credit_transactions CreditTransaction[]
 }
 
 model Plan {
-  plan_id          String   @id @default(uuid())
-  plan_name        String   @unique
+  plan_id           String         @id @default(uuid())
+  plan_name         String         @unique
   credits_per_month Int
-  price            Float
+  price             Float
   subscriptions     Subscription[]
 }
 
 model Subscription {
-  subscription_id  String   @id @default(uuid())
-  user_id          String
-  plan_id          String
-  start_date       DateTime @default(now())
-  end_date         DateTime
-  status           String   // Active, Canceled, Expired, Pending
-  payment_status   String   // Paid, Failed, Refunded
-  discount_applied Boolean  @default(false)
-  stripe_payment_id String
-  user             User     @relation(fields: [user_id], references: [id])
-  plan             Plan     @relation(fields: [plan_id], references: [plan_id])
-  credit_transactions CreditTransaction[]  // Add this relation
+  subscription_id     String              @id @default(uuid())
+  user_id             String
+  plan_id             String
+  start_date          DateTime            @default(now())
+  end_date            DateTime
+  status              String // Active, Canceled, Expired, Pending
+  payment_status      String // Paid, Failed, Refunded
+  discount_applied    Boolean             @default(false)
+  stripe_payment_id   String
+  user                User                @relation(fields: [user_id], references: [id])
+  plan                Plan                @relation(fields: [plan_id], references: [plan_id])
+  credit_transactions CreditTransaction[] // Add this relation
 }
 
 model API {
-  api_id           String   @id @default(uuid())
-  api_name         String
+  api_id            String        @id @default(uuid())
+  api_name          String        @unique
   pricing_per_token Float
   input_output_type String
-  status           String   // Active/Inactive
-  api_usage_logs   APIUsageLog[]  @relation("APIUsageLogAPI") // Relation to APIUsageLog
+  status            String        @default("Active")
+  llm_model         String // Specific model like "GPT-4o", "Claude 3.5 Sonnet", "Gemini"
+  api_usage_logs    APIUsageLog[] @relation("UsageLogAPI") // 
 }
 
 model Chat {
-  chat_id        String   @id @default(uuid())
+  chat_id        String        @id @default(uuid())
   user_id        String
   chat_title     String
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-  deleted        Boolean  @default(false) // New field to mark chat as deleted
-  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)  // Add onDelete: Cascade
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  deleted        Boolean       @default(false) // New field to mark chat as deleted
+  user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade) // Add onDelete: Cascade
   chat_history   ChatHistory[]
-  api_usage_logs APIUsageLog[]  // Relation to APIUsageLog
+  api_usage_logs APIUsageLog[] // Relation to APIUsageLog
+  chat_summary   String? // Store summarized chat context
 }
 
 model ChatHistory {
-  history_id     String   @id @default(uuid())
-  chat_id        String
-  user_input     String
-  api_response   String
-  input_type     String?   // Text
-  output_type    String?  // Make output_type optional
-  timestamp      DateTime @default(now())
-  context_id     String   // Multi-step conversation
-  chat           Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)  // Add onDelete: Cascade
+  history_id       String    @id @default(uuid())
+  chat_id          String    @map("chat_id")
+  user_input       String?
+  api_response     String?
+  input_type       String?
+  output_type      String?
+  timestamp        DateTime  @default(now())
+  context_id       String
+  model            String?   // Add this field
+  credits_deducted Float?    // Add this field
+  chat             Chat      @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
 }
 
 model APIUsageLog {
-  log_id          String   @id @default(uuid())
-  user_id         String
-  chat_id         String
-  tokens_used     Int
-  credits_deducted Int
-  usage_type      String   // user request or api response
-  input_type      String   // Text
-  output_type    String   // Text
-  timestamp       DateTime @default(now())
-  user            User     @relation(fields: [user_id], references: [id])
-  chat            Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)  // Add onDelete: Cascade
-  apis            API[]    @relation("APIUsageLogAPI")
+  log_id            String   @id @default(uuid())
+  user_id           String
+  chat_id           String
+  api_id            String
+  tokens_used       Int
+  prompt_tokens     Int
+  completion_tokens Int
+  credits_deducted  Float
+  api_cost          Float
+  usage_type        String
+  input_type        String
+  output_type       String
+  timestamp         DateTime @default(now())
+  messages_used     Json?    // Add this field to store conversation context
+  user             User     @relation(fields: [user_id], references: [id])
+  chat             Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
+  apis             API      @relation("UsageLogAPI", fields: [api_id], references: [api_id], onDelete: Cascade)
 }
 
 model CreditTransaction {
-  transaction_id  String   @id @default(uuid())
-  user_id         String
-  subscription_id String
-  credits_added   Int
+  transaction_id   String       @id @default(uuid())
+  user_id          String
+  subscription_id  String
+  credits_added    Int
   credits_deducted Int
-  payment_method  String   @default("Stripe")
-  description     String
-  timestamp       DateTime @default(now())
-  user            User     @relation(fields: [user_id], references: [id])
-  subscription    Subscription @relation(fields: [subscription_id], references: [subscription_id])
+  payment_method   String       @default("Stripe")
+  description      String
+  timestamp        DateTime     @default(now())
+  user             User         @relation(fields: [user_id], references: [id])
+  subscription     Subscription @relation(fields: [subscription_id], references: [subscription_id])
 }

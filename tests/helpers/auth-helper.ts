@@ -29,10 +29,14 @@ export const authTestHelper = {
         console.log(`User and related records deleted:`, user.email);
       }
     } catch (error) {
-      if (error.code === 'P2025') {
-        console.log(`No user found to delete for email: ${normalizedEmail}`);
+      if (error instanceof Error) {
+        if (error.message.includes('P2025')) {
+          console.log(`No user found to delete for email: ${normalizedEmail}`);
+        } else {
+          console.error('Error deleting user:', error.message);
+        }
       } else {
-        console.error('Error deleting user:', error);
+        throw new Error('Error deleting user: Unknown error');
       }
     }
   },
@@ -58,8 +62,10 @@ export const authTestHelper = {
 
       return response;
     } catch (error) {
-      console.error('Error in createTestUser:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw new Error(`Authentication failed: ${error.message}`);
+      }
+      throw new Error('Authentication failed: Unknown error');
     }
   },
 
@@ -91,8 +97,11 @@ export const authTestHelper = {
       // Create a mock session token using the user ID
       return `mock_session_${user.id}`;
     } catch (error) {
-      console.error('Error getting session token:', error);
-      throw error;
+      if (error instanceof Error) {
+        console.error('Error getting session token:', error.message);
+        throw new Error(`Error getting session token: ${error.message}`);
+      }
+      throw new Error('Error getting session token: Unknown error');
     }
   }
 };

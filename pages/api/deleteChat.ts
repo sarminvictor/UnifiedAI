@@ -29,13 +29,23 @@ export default async function handler(
 
     const { chatId } = req.body;
 
-    await prisma.chat.delete({
+    // ✅ Update chat to mark as deleted instead of deleting
+    const updatedChat = await prisma.chat.update({
       where: { chat_id: chatId },
+      data: { 
+        deleted: true,
+        updated_at: new Date()
+      },
     });
 
-    res.status(200).json({ success: true });
+    console.log(`✅ Marked chat ${chatId} as deleted`);
+
+    res.status(200).json({ 
+      success: true,
+      data: updatedChat
+    });
   } catch (error) {
-    console.error('Error deleting chat:', error);
+    console.error('❌ Error marking chat as deleted:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 }

@@ -22,6 +22,9 @@ interface ChatSession {
     outputType: string;
     timestamp: string;
     contextId: string;
+    model?: string; // Add model field
+    tokensUsed?: number; // Add tokensUsed field
+    creditsDeducted?: number; // Add creditsDeducted field
   }[];
   model: string;
   updated_at: string;
@@ -42,9 +45,11 @@ const HomeContent = (props: Props) => {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [newChatName, setNewChatName] = useState('');
   const [chatNameError, setChatNameError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const chatEndRef = useRef<HTMLDivElement | null>(null); // Add reference for chat end
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -90,36 +95,44 @@ const HomeContent = (props: Props) => {
         const response = await fetch('/api/getChats');
         const data = await response.json();
         if (data.success) {
-          // Initialize arrays for each chat
-          const chatsWithArrays = data.data.activeChats.map((chat: { messages: any; chat_history: any; }) => ({
-            ...chat,
-            messages: Array.isArray(chat.messages) ? chat.messages : [],
-            chat_history: Array.isArray(chat.chat_history)
-            ? chat.chat_history.map((h) => typeof h === "string" ? { 
-                user_input: h, 
-                api_response: "", 
-                input_type: "Text", 
-                output_type: "Text", 
-                timestamp: new Date().toISOString(),
-                context_id: "" 
-              } : h)
-            : [],
-          })).sort((a: { updated_at: Date; }, b: { updated_at: Date; }) => {
-            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-          }); // Sort by updated_at
-        
+          const chatsWithArrays = data.data.activeChats.map((chat: { chat_history: any[] }) => {
+            const messages = chat.chat_history.map(h => ({
+              userInput: h.user_input || '',
+              apiResponse: h.api_response || '',
+              inputType: h.input_type || 'Text',
+              outputType: h.output_type || 'Text',
+              timestamp: h.timestamp,
+              contextId: h.context_id,
+              model: h.model, // Map the model
+              creditsDeducted: h.credits_deducted, // Map the credits
+            }));
+
+            return {
+              ...chat,
+              messages,
+            };
+          }).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
           setChatSessions(chatsWithArrays);
-        } else {
-          console.error('Error fetching chats:', data.message);
         }
       } catch (error) {
         console.error('Error fetching chats:', error);
-        setChatSessions([]); // Fallback to an empty array on error
+        setChatSessions([]);
       }
     };
 
     fetchChats();
   }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatSessions]); // Scrolls whenever `chatSessions` updates (new messages)
+
+  const scrollToBottom = () => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   const handleStartNewChat = () => {
     // Clean up any existing empty chats first
@@ -149,99 +162,74 @@ const HomeContent = (props: Props) => {
   };
 
   const handleSendMessage = async () => {
-    if (input.trim()) {
-      let chatId = currentChatId;
-      let isNewChat = false;
+    if (!input.trim()) return;
 
-      if (!chatId) {
-        chatId = Date.now().toString();
-        isNewChat = true;
-        const newChat = {
-          id: chatId,
-          chat_id: chatId,
-          chat_title: 'New Chat',
-          name: 'New Chat',
-          messages: [],
-          chat_history: [],
-          model: selectedModel,
-          user_id: session?.user?.id || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          deleted: false,
-        };
+    let chatId = currentChatId;
+    let isNewChat = false;
 
-        setChatSessions(prevChats => [newChat, ...prevChats]);
-        setCurrentChatId(chatId);
+    if (!chatId) {
+      chatId = Date.now().toString();
+      isNewChat = true;
+    }
+
+    const userMessage = {
+      userInput: input.trim(),
+      apiResponse: "",  // No response yet
+      inputType: "Text",
+      outputType: "Text",
+      timestamp: new Date().toISOString(),
+      contextId: chatId,
+    };
+
+    // Show User Message Instantly
+    setChatSessions((prevChats) =>
+      prevChats.map((chat) =>
+        chat.chat_id === chatId
+          ? { ...chat, messages: [...chat.messages, userMessage] }
+          : chat
+      )
+    );
+
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/chatWithGPT", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId, userMessage: userMessage.userInput, modelName: selectedModel }),
+      });
+
+      const data = await response.json();
+      if (!data.success || !data.aiMessage.api_response) {
+        throw new Error("Failed to get API response");
       }
 
-      const newMessage = {
-        userInput: input.trim(),
-        apiResponse: '',
-        inputType: 'Text',
-        outputType: 'Text',
+      const aiMessage = {
+        userInput: "",  // AI has no user input
+        apiResponse: data.aiMessage.api_response,  // Ensure response is stored
+        model: data.model, // Store model name
+        tokensUsed: data.tokensUsed, // Store tokens used
+        creditsDeducted: data.creditsDeducted, // Store credits spent
+        inputType: "Text",
+        outputType: "Text",
         timestamp: new Date().toISOString(),
-        contextId: '',
-        user_input: input.trim(),
+        contextId: chatId,
       };
 
-      // Update local state first
+      // Show AI Message Instantly
       setChatSessions((prevChats) =>
-        prevChats.map(chat =>
+        prevChats.map((chat) =>
           chat.chat_id === chatId
-            ? {
-                ...chat,
-                messages: [...(chat.messages || []), newMessage],
-                chat_history: [
-                  ...(chat.chat_history || []),
-                  {
-                    user_input: newMessage.userInput,
-                    api_response: newMessage.apiResponse,
-                    input_type: newMessage.inputType,
-                    output_type: newMessage.outputType,
-                    timestamp: newMessage.timestamp,
-                    context_id: newMessage.contextId
-                  }
-                ],
-                updated_at: new Date().toISOString(),
-              }
+            ? { ...chat, messages: [...chat.messages, aiMessage] }
             : chat
-        ).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        )
       );
 
-      setInput('');
-
-      try {
-        // If it's a new chat, save the chat first
-        if (isNewChat) {
-          await fetch('/api/saveChats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              chats: [{
-                chat_id: chatId,
-                chat_title: 'New Chat',
-                user_id: session?.user?.id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                deleted: false,
-              }] 
-            }),
-          });
-        }
-
-        // Then save the message
-        const response = await fetch('/api/saveMessage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chatId, message: newMessage }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to save message');
-        }
-      } catch (error) {
-        console.error('Error saving message:', error);
-      }
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -390,47 +378,40 @@ setChatSessions(prevSessions =>
 
   const renderMessages = () => {
     if (!currentChat) return <div className="text-gray-500">Select a chat to view messages</div>;
-    
-    // Combine and deduplicate messages from both arrays
-    const allMessages = [
-      ...(currentChat.messages || []).map(msg => ({
-        ...msg,
-        userInput: msg.userInput, 
-        apiResponse: msg.apiResponse,
-      })),
-      ...(currentChat.chat_history || []).map(msg => ({
-        ...msg,
-        userInput: msg.user_input, // Normalize to `userInput`
-        apiResponse: msg.api_response, // Normalize to `apiResponse`
-        inputType: msg.input_type,
-        outputType: msg.output_type,
-        contextId: msg.context_id,
-      }))
-    ].filter((msg, index, self) => 
-      index === self.findIndex(m => 
-        m.timestamp === msg.timestamp
-      )
-    ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    
-    
-    if (allMessages.length === 0) {
-      return <div className="text-gray-500">No messages in this chat</div>;
-    }
-  
+
+    const allMessages = [...(currentChat.messages || [])].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
     return allMessages.map((message, index) => {
-      const normalizedMessage = {
-        userInput: (message as any).userInput ?? (message as any).user_input,
-        apiResponse: (message as any).apiResponse ?? (message as any).api_response,
-        timestamp: message.timestamp,
-      };
-    
+      const isUserMessage = !!message.userInput;
+      const isLastMessage = index === allMessages.length - 1;
+
       return (
-        <div key={normalizedMessage.timestamp} className="mb-4 p-4 bg-gray-200 rounded">
-          <p className="mb-2">{normalizedMessage.userInput}</p>
-          {normalizedMessage.apiResponse && <p>{normalizedMessage.apiResponse}</p>}
+        <div
+          key={message.timestamp}
+          className={`mb-4 flex ${isUserMessage ? "justify-end" : "justify-start"}`}
+          ref={isLastMessage ? chatEndRef : null} // Auto-scroll to last message
+        >
+          <div
+            className={`p-3 rounded-lg max-w-md ${
+              isUserMessage ? "bg-gray-300 text-black" : "bg-transparent text-gray-800"
+            }`}
+          >
+            {/* Prevent empty message from rendering */}
+            {message.userInput && <p>{message.userInput}</p>}
+            {message.apiResponse && <p>{message.apiResponse}</p>}
+
+            {/* Show Model & Credits for AI Responses */}
+            {!isUserMessage && message.model && message.creditsDeducted !== undefined && (
+              <p className="text-xs text-gray-500 mt-1 text-right">
+                Model: {message.model} | Credits: {message.creditsDeducted.toFixed(2)}
+              </p>
+            )}
+          </div>
         </div>
       );
-    });    
+    });
   };
 
   return (
@@ -563,28 +544,36 @@ setChatSessions(prevSessions =>
       <div className="w-3/4 flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold">{selectedModel} Model</h2>
-          <div>
+          <div className="flex space-x-2">
             <button
-              className={`px-4 py-2 rounded mr-2 transition ${selectedModel === 'ChatGPT' ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-              onClick={() => setSelectedModel('ChatGPT')}
+              className={`px-4 py-2 rounded transition ${
+                selectedModel === "ChatGPT" ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              onClick={() => setSelectedModel("ChatGPT")}
             >
               ChatGPT
             </button>
             <button
-              className={`px-4 py-2 rounded mr-2 transition ${selectedModel === 'Gemini' ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-              onClick={() => setSelectedModel('Gemini')}
+              className={`px-4 py-2 rounded transition ${
+                selectedModel === "Gemini" ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              onClick={() => setSelectedModel("Gemini")}
             >
               Gemini
             </button>
             <button
-              className={`px-4 py-2 rounded mr-2 transition ${selectedModel === 'Claude' ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-              onClick={() => setSelectedModel('Claude')}
+              className={`px-4 py-2 rounded transition ${
+                selectedModel === "Claude" ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              onClick={() => setSelectedModel("Claude")}
             >
               Claude
             </button>
             <button
-              className={`px-4 py-2 rounded transition ${selectedModel === 'DeepSeek' ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-              onClick={() => setSelectedModel('DeepSeek')}
+              className={`px-4 py-2 rounded transition ${
+                selectedModel === "DeepSeek" ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              onClick={() => setSelectedModel("DeepSeek")}
             >
               DeepSeek
             </button>
@@ -601,15 +590,19 @@ setChatSessions(prevSessions =>
             onKeyDown={handleKeyDown}
             ref={inputRef}
             className="w-full p-2 border rounded mb-2"
-            placeholder="Type a message..."
-            disabled={!currentChatId}
+            placeholder={isLoading ? 'Waiting for AI response...' : 'Type a message...'}
+            disabled={isLoading || !currentChatId}
           />
           <button
-            className={`w-full py-2 rounded transition ${input.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+            className={`w-full py-2 rounded transition ${
+              isLoading || !input.trim() || !currentChatId
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
             onClick={handleSendMessage}
-            disabled={!input.trim() || !currentChatId}
+            disabled={isLoading || !input.trim() || !currentChatId}
           >
-            Send
+            {isLoading ? 'Loading...' : 'Send'}
           </button>
         </div>
       </div>

@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       success: true,
-      credits_remaining: user.credits_remaining
+      credits_remaining: Number(user.credits_remaining)
     });
 
   } catch (error) {

@@ -4,10 +4,10 @@ import { authOptions } from '../../app/auth.config';
 import prisma from '@/lib/prismaClient';
 import { OpenAI } from "@langchain/openai";
 import { ChatAnthropic } from "@langchain/anthropic";
-import { GoogleGenerativeAI } from "@langchain/google-genai";
-import { DeepSeek } from "@langchain/deepseek";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { LLMChain } from "langchain/chains";
+import { Decimal } from '@prisma/client/runtime/library';
 
 // Define token rates as a global constant
 const TOKEN_RATES: Record<string, number> = {
@@ -24,9 +24,15 @@ const getAIModel = (modelName: string) => {
     case "Claude":
       return new ChatAnthropic({ anthropicApiKey: process.env.ANTHROPIC_API_KEY, temperature: 0.7 });
     case "Gemini":
-      return new GoogleGenerativeAI({ googleApiKey: process.env.GOOGLE_API_KEY, temperature: 0.7 });
+      return new ChatGoogleGenerativeAI({ apiKey: process.env.GOOGLE_API_KEY, temperature: 0.7 });
     case "DeepSeek":
-      return new DeepSeek({ deepSeekApiKey: process.env.DEEPSEEK_API_KEY, temperature: 0.7 });
+      // Temporarily use OpenAI as fallback until DeepSeek integration is ready
+      return new OpenAI({ 
+        openAIApiKey: process.env.OPENAI_API_KEY, 
+        temperature: 0.7,
+        maxTokens: 500,
+        modelName: "gpt-3.5-turbo" // Use a more economical model for DeepSeek fallback
+      });
     default:
       throw new Error("Unsupported AI Model");
   }
@@ -56,17 +62,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
-  }
-
   const { chatId, userMessage, modelName } = req.body;
-  if (!chatId || !userMessage || !modelName) {
-    return res.status(400).json({ success: false, message: 'chatId, userMessage, and modelName are required' });
-  }
 
   try {
+    // Validate chat exists and is not deleted
+    const existingChat = await prisma.chat.findUnique({ // ✅ Rename variable
+      where: { chat_id: chatId },
+      select: { deleted: true, user_id: true }
+    });
+
+    if (!existingChat) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat not found'
+      });
+    }
+
+    if (existingChat.deleted) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot send messages to deleted chats'
+      });
+    }
+
+    const session = await getServerSession(req, res, authOptions);
+    if (!session?.user?.id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!chatId || !userMessage || !modelName) {
+      return res.status(400).json({ success: false, message: 'chatId, userMessage, and modelName are required' });
+    }
+
     console.log("🔹 Checking user credits...");
 
     // Early credit check
@@ -82,8 +109,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Strict credit check
-    if (user.credits_remaining <= 0) {
+    // ✅ Fix Decimal comparison
+    if (user.credits_remaining.equals(new Decimal(0))) {
       console.log(`❌ Insufficient credits for user ${session.user.id}: ${user.credits_remaining}`);
       return res.status(403).json({
         success: false,
@@ -96,9 +123,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`✅ User has ${user.credits_remaining} credits remaining`);
 
     // Fetch chat history
-    let chat = await prisma.chat.findUnique({ where: { chat_id: chatId } });
-    if (!chat) {
-      chat = await prisma.chat.create({
+    let currentChat = await prisma.chat.findUnique({ // ✅ Rename to avoid redeclaration
+      where: { chat_id: chatId }
+    });
+    if (!currentChat) {
+      currentChat = await prisma.chat.create({
         data: { chat_id: chatId, chat_title: 'New Chat', user_id: session.user.id, created_at: new Date(), updated_at: new Date(), deleted: false }
       });
     }
@@ -169,8 +198,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error("API model not found");
     }
 
-    // Update credit calculation and deduction in transaction
-    if (creditsDeducted > user.credits_remaining) {
+    // ✅ Fix credit comparison
+    const creditsToDeduct = new Decimal(creditsDeducted);
+    if (creditsToDeduct.greaterThan(user.credits_remaining)) {
       return res.status(403).json({
         success: false,
         message: 'Insufficient credits for this request.',

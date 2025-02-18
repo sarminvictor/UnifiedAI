@@ -15,6 +15,7 @@ import {
   type ChatMessage,
   type ChatSession
 } from "@/utils/apiClient";
+import type { ChatMessageProps } from "@/components/Chat/ChatContainer"; // Add this import
 import Sidebar from "@/components/Sidebar/Sidebar";
 import ChatHeader from "@/components/Chat/ChatHeader";
 import ChatContainer from "@/components/Chat/ChatContainer";
@@ -71,8 +72,8 @@ const HomeContent = () => {
 
   console.log("🛠️ Chat Sessions:", chatSessions);
 
-  const credits = creditsData?.credits_remaining !== undefined 
-    ? formatNumber.credits(Number(creditsData.credits_remaining))
+  const credits = creditsData?.credits_remaining 
+    ? Number(creditsData.credits_remaining) // Convert string to number
     : null;
 
   console.log("💰 Current credits:", credits);
@@ -166,33 +167,72 @@ const HomeContent = () => {
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const handleSelectChat = (chatId: string) => {
-    // Remove any empty chats from current state
-    const updatedChats = chatSessions.filter(chat => 
+  const handleSelectChat = async (chatId: string) => {
+    // First, clean up empty chats except the target chat
+    const nonEmptyChats = chatSessions.filter(chat => 
       chat.messages.length > 0 || chat.chat_id === chatId
     );
 
-    // Update local state immediately
-    if (chatsData?.data) {
-      refreshChats({
-        ...chatsData,
-        data: { activeChats: updatedChats }
+    // Update chats list immediately to remove empty chats
+    refreshChats((prev) => {
+      if (!prev?.data) return prev;
+      return {
+        ...prev,
+        data: { activeChats: nonEmptyChats }
+      };
+    }, false);
+
+    // Don't fetch for empty/new chats
+    const targetChat = nonEmptyChats.find(chat => chat.chat_id === chatId);
+    if (!targetChat || targetChat.messages.length === 0) {
+      setCurrentChatId(chatId);
+      setSelectedModel(targetChat?.model || "ChatGPT");
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
+      return;
+    }
+
+    try {
+      // Only fetch complete chat data for existing chats with messages
+      const response = await fetch(`/api/getChat?chatId=${chatId}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        console.error('Failed to fetch chat:', data.message);
+        return;
+      }
+
+      // Update local state with complete chat data
+      refreshChats((prev) => {
+        if (!prev?.data) return prev;
+        
+        const updatedChats = prev.data.activeChats.map(chat => 
+          chat.chat_id === chatId ? data.data : chat
+        );
+
+        return {
+          ...prev,
+          data: { activeChats: updatedChats }
+        };
       }, false);
-    }
 
-    setCurrentChatId(chatId);
-    const selectedChat = updatedChats.find((chat) => chat.chat_id === chatId);
-    if (selectedChat) {
-      setSelectedModel(selectedChat.model || "ChatGPT");
-    }
+      setCurrentChatId(chatId);
+      const selectedChat = data.data;
+      if (selectedChat) {
+        setSelectedModel(selectedChat.model || "ChatGPT");
+      }
 
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 10);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
+    } catch (error) {
+      console.error('Error fetching chat:', error);
+    }
   };
 
   const handleSendMessage = async (messageText: string) => {
-    if (!messageText.trim() || credits === 0 || !currentChatId) return;
+    if (!messageText.trim() || !credits || !currentChatId) return;
 
     // Verify chat still exists and is not empty
     const currentChat = chatSessions.find(chat => chat.chat_id === currentChatId);
@@ -228,16 +268,28 @@ const HomeContent = () => {
 
       console.log("🔹 Sending message:", { chatId, modelName: selectedModel });
 
-      // Show optimistic update
+      // Update chat order optimistically
       refreshChats((prev) => {
         if (!prev?.data) return prev as ApiResponse<ChatApiResponse>;
+        
+        const updatedChats = [...prev.data.activeChats];
+        const chatIndex = updatedChats.findIndex(chat => chat.chat_id === chatId);
+        
+        if (chatIndex > -1) {
+          const chat = updatedChats[chatIndex];
+          // Remove chat from current position
+          updatedChats.splice(chatIndex, 1);
+          // Add chat to the beginning with updated timestamp
+          updatedChats.unshift({
+            ...chat,
+            messages: [...chat.messages, userMessage],
+            updated_at: new Date().toISOString()
+          });
+        }
+
         return {
           ...prev,
-          data: {
-            activeChats: prev.data.activeChats.map((chat) =>
-              chat.chat_id === chatId ? { ...chat, messages: [...chat.messages, userMessage] } : chat
-            ),
-          },
+          data: { activeChats: updatedChats }
         };
       }, false);
 
@@ -255,18 +307,26 @@ const HomeContent = () => {
 
       const aiMessage = createMessage.ai(response, chatId);
 
-      // Update chat with AI response
+      // Update chat order again after AI response
       refreshChats((prev) => {
         if (!prev?.data) return prev as ApiResponse<ChatApiResponse>;
+        
+        const updatedChats = [...prev.data.activeChats];
+        const chatIndex = updatedChats.findIndex(chat => chat.chat_id === chatId);
+        
+        if (chatIndex > -1) {
+          const chat = updatedChats[chatIndex];
+          updatedChats.splice(chatIndex, 1);
+          updatedChats.unshift({
+            ...chat,
+            messages: [...chat.messages, aiMessage],
+            updated_at: new Date().toISOString()
+          });
+        }
+
         return {
           ...prev,
-          data: {
-            activeChats: prev.data.activeChats.map((chat) =>
-              chat.chat_id === chatId 
-                ? { ...chat, messages: [...chat.messages, aiMessage] }
-                : chat
-            ),
-          },
+          data: { activeChats: updatedChats }
         };
       }, false);
 
@@ -346,6 +406,13 @@ const HomeContent = () => {
     }
   };
 
+  // Add type conversion helper
+  const convertChatMessage = (msg: ChatMessage): ChatMessageProps => ({
+    ...msg,
+    tokensUsed: msg.tokensUsed ? Number(msg.tokensUsed) : undefined,
+    creditsDeducted: msg.creditsDeducted ? Number(msg.creditsDeducted) : undefined
+  });
+
   const currentChat = chatSessions.find((chat) => chat.chat_id === currentChatId);
 
   return (
@@ -357,20 +424,23 @@ const HomeContent = () => {
         handleStartNewChat={handleStartNewChat}
         handleEditChat={handleEditChat}
         handleDeleteChat={handleDeleteChat}
-        credits={credits}
-        setSelectedModel={setSelectedModel} // ✅ Add setSelectedModel
-        inputRef={inputRef} // ✅ Add inputRef
-        refreshChats={refreshChats} // ✅ Add refreshChats
+        credits={credits} // Now matches string | null type
+        setSelectedModel={setSelectedModel}
+        inputRef={inputRef}
+        refreshChats={refreshChats}
       />
       <div className="w-3/4 flex flex-col">
         <ChatHeader selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
-        <ChatContainer chatMessages={currentChat?.messages || []} isLoading={isLoading} />
+        <ChatContainer 
+          chatMessages={currentChat?.messages.map(convertChatMessage) || []} 
+          isLoading={isLoading} 
+        />
         <ChatInput 
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
-          hasCredits={credits !== 0}
+          hasCredits={!!credits} // Convert to boolean
           inputRef={inputRef}
-          currentChatId={currentChatId} // ✅ Add currentChatId prop
+          currentChatId={currentChatId}
         />
       </div>
     </div>

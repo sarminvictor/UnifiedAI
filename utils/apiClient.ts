@@ -1,3 +1,5 @@
+import { sanitizeString, sanitizeNumber } from './sanitize';
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
@@ -12,8 +14,8 @@ export interface ChatMessage {
   timestamp: string;
   contextId: string;
   model?: string;
-  tokensUsed: number; // Keep for internal use
-  creditsDeducted: number;
+  tokensUsed: string; // Keep for internal use
+  creditsDeducted: string;
 }
 
 export interface ChatSession {
@@ -29,7 +31,7 @@ export interface ChatApiResponse {
 }
 
 export interface CreditsApiResponse {
-  credits_remaining: number;
+  credits_remaining: string; // Changed from number to string
   success: boolean;
 }
 
@@ -40,8 +42,8 @@ export interface SendMessageResponse {
     api_response: string;
   };
   model: string;
-  tokensUsed: number;
-  creditsDeducted: number;
+  tokensUsed: string; // Changed from number to string
+  creditsDeducted: string; // Changed from number to string
   error?: string; // Add optional error field
 }
 
@@ -53,44 +55,47 @@ export interface SendMessageParams {
 
 // Add formatter functions
 export const formatNumber = {
-  tokens: (value: number | undefined | string): number => 
-    typeof value === 'string' ? parseInt(value, 10) : (value || 0),
-  credits: (value: number | undefined | string): number => 
-    Number((typeof value === 'string' ? parseFloat(value) : (value || 0)).toFixed(2))
+  tokens: (value: string | undefined): string => 
+    value?.toString() || "0",
+  credits: (value: string | undefined): string => {
+    if (!value) return "0.000000";
+    const num = parseFloat(value);
+    return isNaN(num) ? "0.000000" : num.toFixed(6);
+  }
 };
 
 // Add message factory functions
 export const createMessage = {
   user: (text: string, chatId: string): ChatMessage => ({
-    userInput: text,
+    userInput: sanitizeString(text),
     apiResponse: "",
     inputType: "Text",
     outputType: "Text",
     timestamp: new Date().toISOString(),
-    contextId: chatId,
-    tokensUsed: 0,
-    creditsDeducted: 0
+    contextId: sanitizeString(chatId),
+    tokensUsed: "0",
+    creditsDeducted: "0.000000"
   }),
   ai: (response: SendMessageResponse, chatId: string): ChatMessage => ({
     userInput: "",
-    apiResponse: response.aiMessage?.api_response || "No response received",
-    model: response.model,
-    tokensUsed: formatNumber.tokens(response.tokensUsed) || 0, // Keep for logging
-    creditsDeducted: formatNumber.credits(response.creditsDeducted || 0),
+    apiResponse: sanitizeString(response.aiMessage?.api_response),
+    model: sanitizeString(response.model),
+    tokensUsed: sanitizeNumber(response.tokensUsed),
+    creditsDeducted: sanitizeNumber(response.creditsDeducted),
     inputType: "Text",
     outputType: "Text",
     timestamp: new Date().toISOString(),
-    contextId: chatId
+    contextId: sanitizeString(chatId)
   }),
   error: (error: Error, chatId: string): ChatMessage => ({
     userInput: "",
-    apiResponse: `Error: ${error.message || 'AI response failed'}`,
+    apiResponse: sanitizeString(`Error: ${error.message || 'AI response failed'}`),
     inputType: "Text",
     outputType: "Text",
     timestamp: new Date().toISOString(),
     contextId: chatId,
-    tokensUsed: 0,
-    creditsDeducted: 0
+    tokensUsed: "0",
+    creditsDeducted: "0.000000"
   })
 };
 
@@ -120,6 +125,16 @@ export const getChats = async (): Promise<ApiResponse<ChatApiResponse>> => {
     return data;
   } catch (error) {
     console.error('Failed to fetch chats:', error);
+    throw error;
+  }
+};
+
+export const getChat = async (chatId: string): Promise<ApiResponse<ChatSession>> => {
+  try {
+    const res = await fetch(`/api/getChat?chatId=${chatId}`);
+    return handleApiResponse<ChatSession>(res);
+  } catch (error) {
+    console.error('Failed to fetch chat:', error);
     throw error;
   }
 };

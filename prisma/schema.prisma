@@ -11,7 +11,7 @@ model User {
   id                  String              @id @default(uuid()) @map("id") // Ensure id is a string
   email               String              @unique
   password            String?
-  credits_remaining   Decimal             @default(0) @db.Decimal(10,6)  // Changed from Int to Decimal
+  credits_remaining   String              @default("0") // Changed from Decimal
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   name                String? // Optional field for user's name
@@ -25,8 +25,8 @@ model User {
 model Plan {
   plan_id           String         @id @default(uuid())
   plan_name         String         @unique
-  credits_per_month Int
-  price             Float
+  credits_per_month String         // Changed from Int
+  price             String         // Changed from Float
   subscriptions     Subscription[]
 }
 
@@ -48,7 +48,7 @@ model Subscription {
 model API {
   api_id            String        @id @default(uuid())
   api_name          String        @unique
-  pricing_per_token Float
+  pricing_per_token String        // Changed from Float
   input_output_type String
   status            String        @default("Active")
   llm_model         String // Specific model like "GPT-4o", "Claude 3.5 Sonnet", "Gemini"
@@ -78,7 +78,7 @@ model ChatHistory {
   timestamp        DateTime  @default(now())
   context_id       String
   model            String?   // Add this field
-  credits_deducted Decimal?  @db.Decimal(10,6)  // Changed from Float to Decimal
+  credits_deducted String    // Changed from Decimal
   chat             Chat      @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
 }
 
@@ -87,27 +87,27 @@ model APIUsageLog {
   user_id           String
   chat_id           String
   api_id            String
-  tokens_used       Int
-  prompt_tokens     Int
-  completion_tokens Int
-  credits_deducted  Decimal  @db.Decimal(10,6)  // Changed from Float to Decimal
-  api_cost          Float
+  tokens_used       String   // Changed to String
+  prompt_tokens     String   // Changed to String
+  completion_tokens String   // Changed to String
+  credits_deducted  String   // Already String
+  api_cost          String   // Changed to String
   usage_type        String
   input_type        String
   output_type       String
   timestamp         DateTime @default(now())
-  messages_used     Json?    // Add this field to store conversation context
-  user             User     @relation(fields: [user_id], references: [id])
-  chat             Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
-  apis             API      @relation("UsageLogAPI", fields: [api_id], references: [api_id], onDelete: Cascade)
+  messages_used     Json?
+  user              User     @relation(fields: [user_id], references: [id])
+  chat              Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
+  apis              API      @relation("UsageLogAPI", fields: [api_id], references: [api_id], onDelete: Cascade)
 }
 
 model CreditTransaction {
   transaction_id   String       @id @default(uuid())
   user_id          String
   subscription_id  String
-  credits_added    Int
-  credits_deducted Int
+  credits_added    String       // Changed from Int
+  credits_deducted String       // Changed from Int
   payment_method   String       @default("Stripe")
   description      String
   timestamp        DateTime     @default(now())

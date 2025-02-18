@@ -143,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             className="mt-2 text-lg font-semibold text-blue-600 hover:underline"
           >
             {credits !== null && credits !== undefined
-              ? `${credits} credits`  // Credits are already formatted to 2 decimal places
+              ? `${Number(credits).toFixed(2)} credits`
               : "Loading..."}
           </button>
 

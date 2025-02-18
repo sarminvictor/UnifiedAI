@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import ChatMessage from "./ChatMessage";
+import { formatCredits } from '@/utils/format';
 
-interface ChatMessageProps {
+export interface ChatMessageProps {
   userInput: string;
   apiResponse: string;
   inputType: string;
@@ -9,8 +10,8 @@ interface ChatMessageProps {
   timestamp: string;
   contextId: string;
   model?: string;
-  tokensUsed?: number;
-  creditsDeducted?: number;
+  tokensUsed?: number;  // Explicitly number
+  creditsDeducted?: number;  // Explicitly number
 }
 
 interface ChatContainerProps {
@@ -54,7 +55,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatMessages, isLoading }
                     <p>{msg.apiResponse}</p>
                     {msg.model && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Model: {msg.model}, Credits: {msg.creditsDeducted}
+                        Model: {msg.model}, Credits: {formatCredits(msg.creditsDeducted)}
                       </p>
                     )}
                   </div>

@@ -55,8 +55,7 @@ export default async function handler(
       },
       include: {
         chat_history: {
-          orderBy: { timestamp: 'desc' },
-          take: 3, // Only get last 3 messages for preview
+          orderBy: { timestamp: 'desc' }
         }
       },
       orderBy: {

@@ -3,26 +3,27 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../app/auth.config';
 import prisma from '@/lib/prismaClient';
 import { formatCredits } from '@/utils/format';
-import type { Chat, ChatHistory } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
-// Define the Prisma response type
-type PrismaChat = {
+interface ChatHistoryEntry {
+  history_id: string;
+  user_input: string | null;
+  api_response: string | null;
+  input_type: string | null;
+  output_type: string | null;
+  timestamp: Date;
+  context_id: string;
+  model: string | null;
+  credits_deducted: string | null;
+}
+
+interface ChatEntry {
   chat_id: string;
   chat_title: string;
-  model?: string | null;
+  model: string | null;
   updated_at: Date;
-  chat_history: Array<{
-    history_id: string;
-    user_input: string | null;
-    api_response: string | null;
-    input_type: string | null;
-    output_type: string | null;
-    timestamp: Date;
-    context_id: string;
-    model: string | null;
-    credits_deducted: string | null; // Changed from Decimal to string
-  }>;
-};
+  chat_history: ChatHistoryEntry[];
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -64,14 +65,14 @@ export default async function handler(
     });
 
     // Transform with proper typing and limited messages
-    const transformedChats = activeChats.map((chat) => ({
+    const transformedChats = activeChats.map((chat: ChatEntry) => ({
       chat_id: chat.chat_id,
       chat_title: chat.chat_title,
       model: chat.chat_history[0]?.model || "ChatGPT",
       updated_at: chat.updated_at.toISOString(),
       messages: chat.chat_history
         .reverse() // Reverse to get chronological order
-        .map(msg => ({
+        .map((msg: ChatHistoryEntry) => ({
           userInput: msg.user_input || '',
           apiResponse: msg.api_response || '',
           inputType: msg.input_type || 'Text',

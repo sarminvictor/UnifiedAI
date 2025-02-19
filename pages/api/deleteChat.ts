@@ -14,38 +14,41 @@ export default async function handler(
   }
 
   try {
-    // Accept test user ID header in non-production environments
-    const testUserId = process.env.NODE_ENV !== 'production' ? 
-      req.headers['x-test-user-id'] as string : 
-      undefined;
-
-    const session = testUserId ? 
-      { user: { id: testUserId } } : 
-      await getServerSession(req, res, authOptions);
-
-    if (!session?.user?.id) {
+    const session = await getServerSession(req, res, authOptions);
+    if (!session?.user?.email) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const { chatId } = req.body;
+    const { chatId } = req.query;
 
-    // ✅ Update chat to mark as deleted instead of deleting
+    if (!chatId || typeof chatId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Chat ID is required'
+      });
+    }
+
+    // Soft delete the chat
     const updatedChat = await prisma.chat.update({
-      where: { chat_id: chatId },
-      data: { 
+      where: {
+        chat_id: chatId,
+      },
+      data: {
         deleted: true,
         updated_at: new Date()
-      },
+      }
     });
 
-    console.log(`✅ Marked chat ${chatId} as deleted`);
-
-    res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       data: updatedChat
     });
-  } catch (error) {
-    console.error('❌ Error marking chat as deleted:', error);
-    res.status(500).json({ success: false, error: (error as Error).message });
+
+  } catch (error: any) {
+    console.error('Delete Chat Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
   }
 }

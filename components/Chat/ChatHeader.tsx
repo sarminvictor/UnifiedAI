@@ -1,4 +1,5 @@
 import React from "react";
+import { useChatStore } from '@/store/chat/chatStore';
 
 interface ChatHeaderProps {
   selectedModel: string;

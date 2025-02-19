@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useSession, signOut } from "next-auth/react"; // ✅ Import signOut here
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import ChatList from "./ChatList";
+import { useChatStore } from '@/store/chat/chatStore';
 
 interface ChatSession {
   chat_id: string;
@@ -19,16 +20,16 @@ interface ChatSession {
 }
 
 interface SidebarProps {
-  chatSessions: ChatSession[]; // Update type from any[] to ChatSession[]
+  chatSessions: ChatSession[];
   currentChatId: string | null;
   setCurrentChatId: (chatId: string) => void;
   handleStartNewChat: () => void;
-  handleEditChat: (chatId: string, newName: string) => void;  // ✅ Add this prop
+  handleEditChat: (chatId: string, newName: string) => void;
   handleDeleteChat: (chatId: string) => void;
   credits: number | null;
-  setSelectedModel: (model: string) => void; // ✅ Add setSelectedModel
-  inputRef: React.RefObject<HTMLInputElement>; // ✅ Add inputRef
-  refreshChats: (callback: (prev: any) => any, revalidate?: boolean) => void; // ✅ Add refreshChats
+  setSelectedModel: (model: string) => void;
+  inputRef: React.RefObject<HTMLInputElement>;
+  refreshChats: (callback: (prev: any) => any, revalidate?: boolean) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -36,12 +37,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentChatId,
   setCurrentChatId,
   handleStartNewChat,
-  handleEditChat,  // ✅ Add this prop
+  handleEditChat,
   handleDeleteChat,
   credits,
-  setSelectedModel, // ✅ Add setSelectedModel
-  inputRef, // ✅ Add inputRef
-  refreshChats, // ✅ Add refreshChats
+  setSelectedModel,
+  inputRef,
+  refreshChats,
 }) => {
 
   const { data: session } = useSession();
@@ -73,7 +74,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  // ✅ FIXED: Only close chat if clicking **outside** of chat list and menu
   useEffect(() => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -88,12 +88,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     setEditingChatId(null);
     setCurrentChatId(chatId);
 
-    // Clean up empty chats immediately
     const updatedChats = chatSessions.filter((chat: ChatSession) => 
       chat.messages.length > 0 || chat.chat_id === chatId
     );
 
-    // Update both local state and parent
     refreshChats((prev) => ({
       ...prev,
       data: { activeChats: updatedChats }
@@ -115,20 +113,23 @@ const Sidebar: React.FC<SidebarProps> = ({
         <h2 className="text-xl font-bold mb-4">Dashboard</h2>
         <button
           className="w-full bg-blue-500 text-white py-2 rounded mb-4 hover:bg-blue-600 transition"
-          onClick={handleStartNewChat}
+          onClick={() => {
+            setMenuVisible(null);
+            setEditingChatId(null);
+            handleStartNewChat();
+          }}
         >
           Start New Chat
         </button>
         <h3 className="text-lg font-semibold mb-2">History</h3>
 
-        {/* Chat List Component */}
         <ChatList
           chatSessions={chatSessions}
           currentChatId={currentChatId}
           setCurrentChatId={setCurrentChatId}
           handleEditChat={handleEditChat}
           handleDeleteChat={handleDeleteChat}
-          id="chat-list"  // ✅ FIXED: Added ID to ChatList
+          id="chat-list"
         />
       </div>
 
@@ -137,7 +138,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           <p className="text-sm text-gray-600">Logged in as:</p>
           <p className="text-sm font-semibold">{session?.user?.email}</p>
 
-          {/* Display Credits */}
           <button
             onClick={() => router.push("/subscribe")}
             className="mt-2 text-lg font-semibold text-blue-600 hover:underline"
@@ -149,10 +149,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         </div>
 
-        {/* ✅ Fix: Logout Button Works Now */}
         <button
           className="w-full bg-red-500 text-white py-2 rounded mt-4 hover:bg-red-600 transition"
-          onClick={() => signOut()} // ✅ Properly calls signOut
+          onClick={() => signOut()}
         >
           Log Out
         </button>

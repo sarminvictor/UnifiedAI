@@ -1,4 +1,5 @@
 import React from "react";
+import { useChatStore } from '@/store/chat/chatStore';
 import ChatItem from "./ChatItem";
 
 interface ChatListProps {

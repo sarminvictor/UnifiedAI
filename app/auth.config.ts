@@ -1,6 +1,6 @@
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import { PrismaAdapter } from "@auth/prisma-adapter";  // Updated import
 import prisma from '@/lib/prismaClient'; // Use absolute import
 import bcrypt from 'bcryptjs';
 import type { NextAuthOptions, Session, User as NextAuthUser } from 'next-auth';

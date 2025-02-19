@@ -10,8 +10,8 @@ export interface ChatMessageProps {
   timestamp: string;
   contextId: string;
   model?: string;
-  tokensUsed?: number;  // Explicitly number
-  creditsDeducted?: number;  // Explicitly number
+  tokensUsed?: number;  // Changed from string to number
+  creditsDeducted?: string;
 }
 
 interface ChatContainerProps {

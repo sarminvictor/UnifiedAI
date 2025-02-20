@@ -28,8 +28,11 @@ async function main() {
   for (const api of apis) {
     await prisma.aPI.upsert({
       where: { api_name: api.api_name },
-      update: { pricing_per_token: api.pricing_per_token },
-      create: api,
+      update: { pricing_per_token: api.pricing_per_token.toString() },
+      create: {
+        ...api,
+        pricing_per_token: api.pricing_per_token.toString(),
+      },
     });    
   }
 

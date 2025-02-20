@@ -56,21 +56,21 @@ model API {
 }
 
 model Chat {
-  chat_id        String        @id @default(uuid())
+  chat_id        String        @id @default(uuid())  // Changed from numeric to UUID
   user_id        String
   chat_title     String
   created_at     DateTime      @default(now())
   updated_at     DateTime      @updatedAt
   deleted        Boolean       @default(false) // New field to mark chat as deleted
+  chat_summary   String? // Store summarized chat context
   user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade) // Add onDelete: Cascade
   chat_history   ChatHistory[]
   api_usage_logs APIUsageLog[] // Relation to APIUsageLog
-  chat_summary   String? // Store summarized chat context
 }
 
 model ChatHistory {
   history_id       String    @id @default(uuid())
-  chat_id          String    @map("chat_id")
+  chat_id          String    // This will automatically adapt to the parent's type
   user_input       String?
   api_response     String?
   input_type       String?
@@ -85,7 +85,7 @@ model ChatHistory {
 model APIUsageLog {
   log_id            String   @id @default(uuid())
   user_id           String
-  chat_id           String
+  chat_id           String   // This will automatically adapt to the parent's type
   api_id            String
   tokens_used       String   // Changed to String
   prompt_tokens     String   // Changed to String

@@ -3,6 +3,7 @@ import { useChatStore } from './chatStore';
 import { messageService } from '@/services/messageService';
 import { chatService } from '@/services/chatService';
 import { logger } from '@/utils/logger';
+import { v4 as uuidv4 } from 'uuid';
 
 export const useChatActions = () => {
   const dispatch = useChatStore(state => state.dispatch);
@@ -20,7 +21,7 @@ export const useChatActions = () => {
     }
 
     // Create new chat only if no empty chat exists
-    const newChatId = Date.now().toString();
+    const newChatId = uuidv4();
     const newChat = {
       chat_id: newChatId,
       chat_title: "New Chat",

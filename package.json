@@ -20,7 +20,8 @@
     "test:watch": "jest --config jest.config.js --watch",
     "test:regression": "jest tests/regression --config jest.config.js --runInBand",
     "test:regression:watch": "jest tests/regression --config jest.config.js --watch --runInBand",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "migrate-chat-ids": "ts-node scripts/migrateChatIds.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

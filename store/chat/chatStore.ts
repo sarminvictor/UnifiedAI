@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools } from 'zustand/middleware'; // Remove persist middleware
+import { updateBrowserUrl } from '@/utils/chatUtils';
 import type { ChatState, ChatAction } from './types';
 import type { ChatSession } from '@/types/store';
 
@@ -16,25 +17,46 @@ type ChatStore = ChatState & {
 };
 
 export const useChatStore = create<ChatStore>()(
-  devtools((set) => ({
+  devtools((set, get) => ({
     ...initialState,
 
     dispatch: (action: ChatAction) => {
       switch (action.type) {
         case 'SET_CHATS':
-          // Validate data before setting
           if (Array.isArray(action.payload)) {
-            set({
+            const currentId = get().currentChatId; // Get current ID from state
+            set({ 
               chats: action.payload,
-              currentChatId: action.payload.length > 0 
-                ? action.payload[0].chat_id 
+              currentChatId: currentId && action.payload.some(c => c.chat_id === currentId) 
+                ? currentId 
                 : null
             });
+            
+            // Check URL for chat ID on initial load if no current chat
+            if (!currentId) {
+              const path = window?.location?.pathname;
+              const urlChatId = path?.split('/c/')?.[1];
+              if (urlChatId && action.payload.some(c => c.chat_id === urlChatId)) {
+                set({ currentChatId: urlChatId });
+              }
+            }
           }
           break;
 
         case 'SET_CURRENT_CHAT':
-          set({ currentChatId: action.payload });
+          if (action.payload) {
+            const chat = get().chats.find(c => c.chat_id === action.payload);
+            if (chat) {
+              set({ currentChatId: action.payload });
+              // Only update URL for chats with messages
+              if (chat.messages?.length > 0) {
+                updateBrowserUrl(action.payload);
+              }
+            }
+          } else {
+            set({ currentChatId: null });
+            updateBrowserUrl(null);
+          }
           break;
 
         case 'SET_MODEL':
@@ -61,8 +83,8 @@ export const useChatStore = create<ChatStore>()(
 
         case 'ADD_MESSAGE': {
           const { chatId, message } = action.payload;
-          set((state: ChatState) => ({
-            chats: state.chats.map((chat: ChatSession) =>
+          set((state: ChatState) => {
+            const updatedChats = state.chats.map((chat: ChatSession) =>
               chat.chat_id === chatId
                 ? {
                     ...chat,
@@ -70,16 +92,31 @@ export const useChatStore = create<ChatStore>()(
                     updated_at: new Date().toISOString()
                   }
                 : chat
-            )
-          }));
+            );
+            
+            // Update URL after first message is added
+            const updatedChat = updatedChats.find(c => c.chat_id === chatId);
+            if (updatedChat?.messages.length === 1) {
+              updateBrowserUrl(chatId);
+            }
+            
+            return { chats: updatedChats };
+          });
           break;
         }
 
         case 'DELETE_CHAT':
-          set(state => ({
-            chats: state.chats.filter(chat => chat.chat_id !== action.payload),
-            currentChatId: state.currentChatId === action.payload ? null : state.currentChatId
-          }));
+          set(state => {
+            const newState = {
+              chats: state.chats.filter(chat => chat.chat_id !== action.payload),
+              currentChatId: state.currentChatId === action.payload ? null : state.currentChatId
+            };
+            // Clear URL when chat is deleted
+            if (state.currentChatId === action.payload) {
+              updateBrowserUrl(null);
+            }
+            return newState;
+          });
           break;
 
         case 'REORDER_CHATS': {

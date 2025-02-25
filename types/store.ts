@@ -11,6 +11,7 @@ export interface ChatMessage {
 }
 
 export interface ChatSession {
+  chat_history: any;
   chat_id: string;
   chat_title?: string;
   messages: ChatMessage[];

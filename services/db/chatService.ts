@@ -1,16 +1,14 @@
 import prisma from '@/lib/prismaClient';
-import { sanitizeString } from '@/utils/sanitize';
-import { ModelName } from '@/types/ai.types';
-import { CHAT_CONSTANTS } from '@/constants/ai.constants';
+import { ChatMessage } from '@/types/ai.types';
 
 export class ChatService {
   static async findChat(chatId: string) {
     return prisma.chat.findUnique({
       where: { chat_id: chatId },
-      select: { 
-        deleted: true, 
-        user_id: true,
-        chat_summary: true
+      include: {
+        chat_history: {
+          orderBy: { timestamp: 'asc' }
+        }
       }
     });
   }
@@ -18,54 +16,43 @@ export class ChatService {
   static async createUserMessage(chatId: string, userMessage: string) {
     return prisma.chatHistory.create({
       data: {
-        chat: { connect: { chat_id: chatId } },
-        user_input: sanitizeString(userMessage) || '',
-        api_response: '',
-        input_type: 'Text',
-        output_type: 'Text',
+        chat_id: chatId,
+        user_input: userMessage,
         timestamp: new Date(),
+        input_type: 'text',
+        output_type: 'text',
         context_id: chatId,
-        credits_deducted: '0',
-      },
+        credits_deducted: '0'
+      }
     });
   }
 
-  static async createAIMessage(
-    chatId: string, 
-    response: string, 
-    modelName: ModelName, 
-    creditsDeducted: string
-  ) {
+  static async createAIMessage(chatId: string, aiResponse: string, model: string, creditsDeducted: string) {
     return prisma.chatHistory.create({
       data: {
-        chat: { connect: { chat_id: chatId } },
-        user_input: '',
-        api_response: sanitizeString(response),
-        input_type: 'Text',
-        output_type: 'Text',
+        chat_id: chatId,
+        api_response: aiResponse,
         timestamp: new Date(),
+        input_type: 'text',
+        output_type: 'text',
         context_id: chatId,
-        model: modelName,
-        credits_deducted: creditsDeducted,
-      },
+        model: model,
+        credits_deducted: creditsDeducted
+      }
     });
   }
 
-  static async getPreviousMessages(chatId: string, limit: number = CHAT_CONSTANTS.DEFAULT_MESSAGE_LIMIT) {
+  static async getPreviousMessages(chatId: string) {
     return prisma.chatHistory.findMany({
       where: { chat_id: chatId },
-      orderBy: { timestamp: 'asc' },
-      take: limit
+      orderBy: { timestamp: 'asc' }
     });
   }
 
-  static async updateChatSummary(chatId: string, summary: string) {
+  static async updateChatSummary(chatId: string, newSummary: string) {
     return prisma.chat.update({
       where: { chat_id: chatId },
-      data: { 
-        chat_summary: summary,
-        updated_at: new Date()
-      }
+      data: { chat_summary: newSummary }
     });
   }
 

@@ -4,12 +4,17 @@ export const removeNullBytes = (str: string | null | undefined): string => {
 };
 
 // Basic sanitization function for strings
-export const sanitizeString = (str: string | null | undefined): string => {
+export const sanitizeString = function(str: string | null | undefined): string {
   if (!str) return '';
-  return str
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters
-    .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')             // Remove BOM and invalid chars
-    .trim();
+  try {
+    return str
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')
+      .trim();
+  } catch (error) {
+    console.error('Error in sanitizeString:', error);
+    return str;
+  }
 };
 
 // Specific sanitization for PostgreSQL text fields

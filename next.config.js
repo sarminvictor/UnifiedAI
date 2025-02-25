@@ -13,9 +13,8 @@ const nextConfig = {
     }
     return config;
   },
-  // Simplify experimental features
   experimental: {
-    // Remove optimizeCss as it requires additional setup
+    // Remove appDir as it's now default in Next.js 14
     optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai']
   },
   poweredByHeader: false,

@@ -1,3 +1,5 @@
+'use client';
+
 import { logger } from '@/utils/logger';
 import { chatService } from '@/services/chatService';
 import { useOptimisticChat } from './useOptimisticChat';

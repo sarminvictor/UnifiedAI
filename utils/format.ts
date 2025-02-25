@@ -1,3 +1,5 @@
+'use client';
+
 export const formatCredits = (value: string | number | null | undefined): string => {
   if (!value) return '0.00';
   const num = typeof value === 'string' ? parseFloat(value) : value;

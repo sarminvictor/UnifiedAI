@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { useChatStore } from '@/store/chat/chatStore';
 
@@ -9,7 +11,7 @@ interface ChatInputProps {
   currentChatId: string | null;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, hasCredits, inputRef, currentChatId }) => {
+export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputRef, currentChatId }: ChatInputProps) {
   const [input, setInput] = React.useState("");
   const localInputRef = React.useRef<HTMLInputElement>(null);
   const activeInputRef = inputRef || localInputRef;
@@ -24,11 +26,28 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, hasCred
     }
   }, [currentChatId, activeInputRef]);
 
-  const handleSend = () => {
-    if (input.trim() && hasCredits && onSendMessage && currentChatId) {
-      onSendMessage(input.trim());
-      setInput("");
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    
+    if (!hasCredits) {
+      toast.error('Insufficient credits', {
+        description: 'Please add more credits to continue using the service.',
+        action: {
+          label: 'Add Credits',
+          onClick: () => window.location.href = '/user/credits'
+        }
+      });
+      return;
     }
+    
+    if (!currentChatId) {
+      toast.error('No active chat selected');
+      return;
+    }
+    
+    const message = input;
+    setInput('');
+    await onSendMessage(message);
   };
 
   const getPlaceholder = () => {
@@ -73,5 +92,3 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, hasCred
     </div>
   );
 };
-
-export default ChatInput;

@@ -38,4 +38,9 @@ export interface SummaryConfig {
   currentAiResponse: string;
 }
 
-export type ModelName = "ChatGPT" | "Claude" | "Gemini" | "DeepSeek";
+export enum ModelName {
+  ChatGPT = 'ChatGPT',
+  Claude = 'Claude',
+  Gemini = 'Gemini',
+  DeepSeek = 'DeepSeek'
+}

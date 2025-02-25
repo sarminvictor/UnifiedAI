@@ -1,20 +1,21 @@
+'use client';
+
 import React, { useEffect, useState, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation"; // Changed from next/router
 import ChatList from "./ChatList";
 import { useChatStore } from '@/store/chat/chatStore';
 
 interface ChatSession {
   chat_id: string;
   chat_title?: string;
-  messages: {
-    userInput: string;
-    apiResponse: string;
-    inputType: string;
-    outputType: string;
+  chat_history: Array<{
+    user_input?: string;
+    api_response?: string;
     timestamp: string;
-    contextId: string;
-  }[];
+    model?: string;
+    credits_deducted?: string;
+  }>;
   model: string;
   updated_at: string;
 }
@@ -29,7 +30,7 @@ interface SidebarProps {
   credits: number | null;
   setSelectedModel: (model: string) => void;
   inputRef: React.RefObject<HTMLInputElement>;
-  refreshChats: (callback: (prev: any) => any, revalidate?: boolean) => void;
+  refreshChats: () => Promise<void>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -44,67 +45,40 @@ const Sidebar: React.FC<SidebarProps> = ({
   inputRef,
   refreshChats,
 }) => {
-
   const { data: session } = useSession();
-  const router = useRouter();
+  const router = useRouter(); // Now using App Router
 
   const [menuVisible, setMenuVisible] = useState<string | null>(null);
-  const [editingChatId, setEditingChatId] = useState<string | null>(null);
-  const [newChatName, setNewChatName] = useState("");
-  const [chatNameError, setChatNameError] = useState(false);
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const handleClickOutside = (event: MouseEvent) => {
     if (!menuVisible) return;
-
     const clickedInsideMenu = menuRefs.current[menuVisible]?.contains(event.target as Node);
     const clickedInsideChatList = document.getElementById("chat-list")?.contains(event.target as Node);
 
     if (!clickedInsideMenu && !clickedInsideChatList) {
       setMenuVisible(null);
-
-      if (editingChatId) {
-        const chat = chatSessions.find((chat) => chat.chat_id === editingChatId);
-        if (chat) {
-          setNewChatName(chat.chat_title || "");
-        }
-        setEditingChatId(null);
-        setChatNameError(false);
-      }
     }
   };
 
   useEffect(() => {
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [menuVisible, editingChatId, chatSessions]);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuVisible]);
 
-  const handleSelectChat = (chatId: string) => {
+  const handleSelectChat = async (chatId: string) => {
     if (!chatId) return;
 
     setMenuVisible(null);
-    setEditingChatId(null);
     setCurrentChatId(chatId);
-
-    const updatedChats = chatSessions.filter((chat: ChatSession) => 
-      chat.messages.length > 0 || chat.chat_id === chatId
-    );
-
-    refreshChats((prev) => ({
-      ...prev,
-      data: { activeChats: updatedChats }
-    }), false);
 
     const selectedChat = chatSessions.find((chat) => chat.chat_id === chatId);
     if (selectedChat) {
       setSelectedModel(selectedChat.model || "ChatGPT");
     }
 
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 10);
+    setTimeout(() => inputRef.current?.focus(), 10);
+    await refreshChats();
   };
 
   return (
@@ -115,7 +89,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           className="w-full bg-blue-500 text-white py-2 rounded mb-4 hover:bg-blue-600 transition"
           onClick={() => {
             setMenuVisible(null);
-            setEditingChatId(null);
             handleStartNewChat();
           }}
         >
@@ -126,28 +99,23 @@ const Sidebar: React.FC<SidebarProps> = ({
         <ChatList
           chatSessions={chatSessions}
           currentChatId={currentChatId}
-          setCurrentChatId={setCurrentChatId}
+          setCurrentChatId={handleSelectChat}
           handleEditChat={handleEditChat}
           handleDeleteChat={handleDeleteChat}
           id="chat-list"
         />
       </div>
 
-      <div>
-        <div className="border-t pt-4 mt-4">
-          <p className="text-sm text-gray-600">Logged in as:</p>
-          <p className="text-sm font-semibold">{session?.user?.email}</p>
+      <div className="border-t pt-4 mt-4">
+        <p className="text-sm text-gray-600">Logged in as:</p>
+        <p className="text-sm font-semibold">{session?.user?.email}</p>
 
-          <button
-            onClick={() => router.push("/subscribe")}
-            className="mt-2 text-lg font-semibold text-blue-600 hover:underline"
-          >
-            {credits !== null && credits !== undefined
-              ? `${Number(credits).toFixed(2)} credits`
-              : "Loading..."}
-          </button>
-
-        </div>
+        <button
+          onClick={() => router.push("/subscribe")} // Using new router
+          className="mt-2 text-lg font-semibold text-blue-600 hover:underline"
+        >
+          {credits !== null ? `${Number(credits).toFixed(2)} credits` : "Loading..."}
+        </button>
 
         <button
           className="w-full bg-red-500 text-white py-2 rounded mt-4 hover:bg-red-600 transition"

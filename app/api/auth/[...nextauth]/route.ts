@@ -3,6 +3,9 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import prisma from '@/lib/prismaClient'; // Use absolute import
 import bcrypt from 'bcryptjs';
+import { SubscriptionService } from '@/services/subscriptions/subscription.service';
+
+const subscriptionService = new SubscriptionService();
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -70,30 +73,38 @@ export const authOptions: AuthOptions = {
       return token;
     },
     async signIn({ user, account }) {
-      if (account && account.provider === 'google') {
+      if (account?.provider === 'google') {
         if (!user.email) {
           throw new Error('User email is required');
         }
 
-        // Check if the user already exists by email
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-
-        // If the user doesn't exist, create a new user
-        if (!existingUser) {
-          await prisma.user.create({
-            data: {
-              email: user.email,
-              name: user.name || '', // Google may not provide a name
-              password: '', // No password for Google users
-              created_at: new Date(),
-              updated_at: new Date(),
-            },
+        try {
+          // Check if user exists
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email },
           });
+
+          // If new user, create account and subscription
+          if (!existingUser) {
+            const newUser = await prisma.user.create({
+              data: {
+                email: user.email,
+                name: user.name || '',
+                password: '',
+                credits_remaining: '0',
+              },
+            });
+
+            // Create free subscription for new user
+            await subscriptionService.createFreeSubscription(newUser.id);
+          }
+          return true;
+        } catch (error) {
+          console.error('Error in Google sign-in:', error);
+          return false;
         }
       }
-      return true; // Allow sign-in to proceed
+      return true;
     },
   },
   debug: true, // Enable debug messages

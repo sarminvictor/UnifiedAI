@@ -1,3 +1,5 @@
+'use client';
+
 import type { ChatSession, ChatMessage } from '@/types/store';
 
 export const useOptimisticChat = () => {

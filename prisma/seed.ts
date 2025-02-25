@@ -37,6 +37,37 @@ async function main() {
   }
 
   console.log("✅ AI API pricing data seeded successfully.");
+
+  // Create default APIs
+  await prisma.aPI.createMany({
+    data: [
+      {
+        api_id: 'ChatGPT',
+        api_name: 'ChatGPT-4',
+        pricing_per_token: '0.000784',
+        input_output_type: 'text',
+        status: 'Active',
+        llm_model: 'gpt-4'
+      },
+      {
+        api_id: 'Claude',
+        api_name: 'Claude 3 Sonnet',
+        pricing_per_token: '0.001125',
+        input_output_type: 'text',
+        status: 'Active',
+        llm_model: 'claude-3-sonnet'
+      },
+      {
+        api_id: 'Gemini',
+        api_name: 'Gemini Pro',
+        pricing_per_token: '0.000023',
+        input_output_type: 'text',
+        status: 'Active',
+        llm_model: 'gemini-pro'
+      }
+    ],
+    skipDuplicates: true,
+  });
 }
 
 main()

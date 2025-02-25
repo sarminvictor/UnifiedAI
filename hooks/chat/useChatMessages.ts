@@ -1,3 +1,5 @@
+'use client';
+
 import { logger } from '@/utils/logger';
 import { messageService } from '@/services/messageService';
 import { chatService } from '@/services/chatService';

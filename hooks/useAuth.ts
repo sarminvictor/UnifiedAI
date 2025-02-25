@@ -1,20 +1,23 @@
+'use client';
+
 import { useEffect } from 'react';
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/router";
+import { useRouter, usePathname } from "next/navigation"; // Changed from next/router
 import { logger } from '@/utils/logger';
 
 export const useAuth = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (status === "unauthenticated" && pathname !== "/auth/signin") {
       logger.info('User not authenticated, redirecting to login');
       router.push("/auth/signin");
     }
-  }, [status, router]);
+  }, [status, router, pathname]);
 
   const handleSignOut = async () => {
     try {

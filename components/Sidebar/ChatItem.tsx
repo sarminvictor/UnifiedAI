@@ -1,7 +1,19 @@
+'use client';
+
 import React, { useState, useRef, useEffect } from "react";
 
 interface ChatItemProps {
-  chat: any;
+  chat: {
+    chat_id: string;
+    chat_title?: string;
+    chat_history: Array<{
+      user_input?: string;
+      api_response?: string;
+      timestamp: string;
+    }>;
+    model?: string;
+    updated_at: string;
+  };
   currentChatId: string | null;
   setCurrentChatId: (chatId: string) => void;
   handleEditChat: (chatId: string, newName: string) => void;
@@ -21,8 +33,9 @@ const ChatItem: React.FC<ChatItemProps> = ({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const isEmpty = chat.messages.length === 0;
+  const isEmpty = !chat.chat_history?.length;
 
+  // Handle clicks outside menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuVisible && menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -34,6 +47,7 @@ const ChatItem: React.FC<ChatItemProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuVisible]);
 
+  // Focus input when editing
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
@@ -49,12 +63,10 @@ const ChatItem: React.FC<ChatItemProps> = ({
 
   return (
     <li
-      key={chat.chat_id}
       className={`mb-2 p-2 rounded shadow flex justify-between items-center ${
         currentChatId === chat.chat_id ? "bg-blue-100 border-l-4 border-blue-500" : "bg-white hover:bg-gray-50"
       } ${isEmpty ? 'opacity-70' : ''}`}
     >
-      {/* Edit Chat Name Input */}
       {isEditing ? (
         <input
           ref={inputRef}
@@ -82,14 +94,16 @@ const ChatItem: React.FC<ChatItemProps> = ({
       {!isEmpty && (
         <div className="relative">
           <button
-            className={`text-gray-500 hover:text-gray-700 ${!chat.messages.length ? "opacity-50 cursor-not-allowed" : ""}`}
-            onClick={() => chat.messages.length && setMenuVisible((prev) => !prev)} // Prevent opening menu for new chat
-            disabled={!chat.messages.length}
+            className={`text-gray-500 hover:text-gray-700 ${
+              chat.chat_history?.length ? "" : "opacity-50 cursor-not-allowed"
+            }`}
+            onClick={() => chat.chat_history?.length && setMenuVisible(!menuVisible)}
+            disabled={!chat.chat_history?.length}
           >
             ⋮
           </button>
 
-          {menuVisible && chat.messages.length > 0 && ( // Only show menu for saved chats
+          {menuVisible && chat.chat_history.length > 0 && (
             <div ref={menuRef} className="absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg z-10">
               <button
                 onClick={() => {

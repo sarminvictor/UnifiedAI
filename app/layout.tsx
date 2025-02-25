@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 import { Toaster } from 'sonner';
+import { getSession } from 'next-auth/react';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -16,6 +17,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const session = getSession();
+
+  if (!session) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/auth/signin';
+    }
+    return null;
+  }
+
   return (
     <html lang="en">
       <body className={inter.className} suppressHydrationWarning>

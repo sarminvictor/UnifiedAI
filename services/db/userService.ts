@@ -1,12 +1,37 @@
 import prisma from '@/lib/prismaClient';
 import { Decimal } from '@prisma/client/runtime/library';
+import { SubscriptionService } from '@/services/subscriptions/subscription.service';
 
 interface UserCredits {
   id: string;
   credits_remaining: string;
 }
 
+const subscriptionService = new SubscriptionService();
+
 export class UserService {
+  static async createUser(email: string, hashedPassword: string, name?: string) {
+    try {
+      // Create user with 0 initial credits
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          credits_remaining: '0',
+        },
+      });
+
+      // Create free subscription which will add credits
+      await subscriptionService.createFreeSubscription(user.id);
+
+      return user;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
   static async findUser(userId: string): Promise<UserCredits | null> {
     return prisma.user.findUnique({
       where: { id: userId },

@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation"; // Changed from next/router
 import ChatList from "./ChatList";
 import { useChatStore } from '@/store/chat/chatStore';
+import CreditsDisplay from './CreditsDisplay';
 
 interface ChatSession {
   chat_id: string;
@@ -81,6 +82,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     await refreshChats();
   };
 
+  const handleCreditsClick = () => {
+    router.push('/subscriptions');
+  };
+
   return (
     <div className="w-1/4 bg-gray-100 p-4 flex flex-col justify-between">
       <div>
@@ -111,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <p className="text-sm font-semibold">{session?.user?.email}</p>
 
         <button
-          onClick={() => router.push("/subscribe")} // Using new router
+          onClick={handleCreditsClick}
           className="mt-2 text-lg font-semibold text-blue-600 hover:underline"
         >
           {credits !== null ? `${Number(credits).toFixed(2)} credits` : "Loading..."}

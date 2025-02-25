@@ -155,12 +155,24 @@ export async function POST(request: NextRequest) {
 
       // Get AI response
       const response = await chain.call({ input: userMessage });
+      
+      // Log the full response for debugging
+      serverLogger.debug('AI Response details:', {
+        responseKeys: Object.keys(response),
+        llmDetails: llm.modelName || llm._llm.model_name || llm._modelName,
+        response: response
+      });
+
       if (!response.text) {
         throw new ServerError(
           ServerErrorCodes.AI_PROCESSING_ERROR,
           'Empty response from AI'
         );
       }
+
+      // Get actual model used from the LLM instance
+      const actualModelUsed = llm.modelName || llm._llm.model_name || llm._modelName || modelName;
+      serverLogger.info('Model used for response:', { actualModelUsed });
 
       // Calculate tokens and credits using TokenCalculator
       const tokenInfo = TokenCalculator.calculateMessageTokens(userMessage, response.text);
@@ -191,17 +203,26 @@ export async function POST(request: NextRequest) {
         })
       ]);
 
-      // Log API usage with the existing user message
-      await APIUsageService.logAPIUsage({
-        userId: user.id,
-        chatId,
-        modelName,
-        tokensUsed: tokenInfo.totalTokens,
-        promptTokens: tokenInfo.promptTokens,
-        completionTokens: tokenInfo.completionTokens,
-        creditsDeducted,
-        messageIds: [lastUserMessage.history_id, messageAI.history_id]
-      });
+      // Log API usage with proper error handling
+      try {
+        await APIUsageService.logAPIUsage({
+          userId: user.id,
+          chatId,
+          modelName,
+          tokensUsed: tokenInfo.totalTokens,
+          promptTokens: tokenInfo.promptTokens,
+          completionTokens: tokenInfo.completionTokens,
+          creditsDeducted,
+          messageIds: [lastUserMessage.history_id, messageAI.history_id]
+        });
+      } catch (apiLogError) {
+        serverLogger.error('Failed to log API usage:', {
+          error: apiLogError instanceof Error ? apiLogError.message : 'Unknown error',
+          modelName,
+          chatId
+        });
+        // Continue without throwing - don't fail the whole request just because logging failed
+      }
 
       // Handle chat summary if needed
       if (SummaryManager.needsSummary(chat.chat_history.length)) {
@@ -235,11 +256,15 @@ export async function POST(request: NextRequest) {
         await ChatService.updateTimestamp(chatId);
       }
 
+      // Include actual model used in the response
       return NextResponse.json({
         success: true,
         userMessage: lastUserMessage,
         aiMessage: messageAI,
-        model: modelName,
+        model: {
+          requested: modelName,
+          actual: actualModelUsed
+        },
         tokensUsed: tokenInfo.totalTokens,
         creditsDeducted,
         credits_remaining: updatedUser.credits_remaining
@@ -248,15 +273,17 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       serverLogger.error('Chain call error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
         modelName,
         messageLength: userMessage.length
       });
 
-      throw new ServerError(
-        ServerErrorCodes.AI_PROCESSING_ERROR,
-        'AI processing failed',
-        error instanceof Error ? error.message : 'Unknown error'
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'AI processing failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 500 }
       );
     }
 

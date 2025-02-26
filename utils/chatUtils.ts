@@ -1,46 +1,55 @@
 'use client';
 
-import type { ChatMessage } from "@/types/store";
-import type { ChatMessageProps } from '@/components/Chat/ChatContainer';
+import type { BaseMessage, ChatMessage } from "@/types/store";
 import { v4 as uuidv4 } from 'uuid';
 
 export function generateChatId(): string {
   return uuidv4();
 }
 
-export const convertChatMessage = (message: any) => {
-  console.group('Message Conversion Details');
-  console.log('Input Message:', message);
-  console.log('Message Keys:', message ? Object.keys(message) : 'null');
-  console.log('Has user_input:', message?.user_input);
-  console.log('Has api_response:', message?.api_response);
-  
-  const converted = {
-    userInput: message?.user_input || '',
-    apiResponse: message?.api_response || '',
-    inputType: message?.input_type || 'text',
-    outputType: message?.output_type || 'text',
-    timestamp: message?.timestamp || new Date().toISOString(),
-    contextId: message?.context_id || message?.contextId || '',
-    model: message?.model || '',
-    creditsDeducted: message?.credits_deducted || '0'
+interface RawChatMessage {
+  user_input?: string;
+  api_response?: string;
+  input_type?: string;
+  output_type?: string;
+  timestamp?: string;
+  context_id?: string;
+  contextId?: string;
+  model?: string;
+  credits_deducted?: string;
+}
+
+export const convertChatMessage = (message: RawChatMessage | null): ChatMessage => {
+  if (!message) {
+    throw new Error('Message cannot be null or undefined');
+  }
+
+  const converted: ChatMessage = {
+    messageId: uuidv4(),
+    userInput: message.user_input || '',
+    apiResponse: message.api_response || '',
+    inputType: message.input_type || 'text',
+    outputType: message.output_type || 'text',
+    timestamp: message.timestamp || new Date().toISOString(),
+    contextId: message.context_id || message.contextId || '',
+    model: message.model || '',
+    creditsDeducted: message.credits_deducted || '0',
+    chat_id: null
   };
 
-  console.log('Converted Message:', converted);
-  console.log('Has Content:', {
-    hasUserInput: !!converted.userInput,
-    hasApiResponse: !!converted.apiResponse,
-    userInputLength: converted.userInput.length,
-    apiResponseLength: converted.apiResponse.length
-  });
-  console.groupEnd();
-  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Converted Message:', converted);
+  }
+
   return converted;
 };
 
-export const cleanupEmptyChats = (chats: any[], currentChatId: string | null) => {
-  return chats.filter(chat => 
-    chat.messages.length > 0 || chat.chat_id === currentChatId
+export const cleanupEmptyChats = (chats: ChatMessage[], currentChatId: string | null): ChatMessage[] => {
+  if (!Array.isArray(chats)) {
+    throw new Error('Chats must be an array');
+  }
+  return chats.filter(chat =>
+    chat.messageId?.length > 0 || chat.chat_id === currentChatId
   );
 };
 

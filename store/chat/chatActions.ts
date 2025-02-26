@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { generateChatId } from '@/utils/chatUtils';
 import { toast } from 'sonner'; // Replace the old toast import with sonner
+import { useSWRConfig } from 'swr';
 
 export const useChatActions = () => {
   const dispatch = useChatStore(state => state.dispatch);
@@ -23,20 +24,20 @@ export const useChatActions = () => {
       if (tempId && realId) {
         // Track this replacement to avoid duplicates
         replacedChatIds.current.set(tempId, realId);
-        
-        dispatch({ 
-          type: 'REPLACE_TEMP_CHAT', 
-          payload: { 
-            tempId, 
+
+        dispatch({
+          type: 'REPLACE_TEMP_CHAT',
+          payload: {
+            tempId,
             realId,
-            updates: {} 
+            updates: {}
           }
         });
       }
     };
-    
+
     window.addEventListener('replaceTempChat', handleReplaceTempChat as EventListener);
-    
+
     return () => {
       window.removeEventListener('replaceTempChat', handleReplaceTempChat as EventListener);
     };
@@ -44,10 +45,10 @@ export const useChatActions = () => {
 
   const handleStartNewChat = () => {
     // Check for existing empty chat
-    const emptyChat = store.chats.find(chat => 
+    const emptyChat = store.chats.find(chat =>
       !chat.chat_history || chat.chat_history.length === 0
     );
-    
+
     if (emptyChat) {
       dispatch({ type: 'SET_CURRENT_CHAT', payload: emptyChat.chat_id });
       dispatch({ type: 'SET_MODEL', payload: 'ChatGPT' });
@@ -74,14 +75,14 @@ export const useChatActions = () => {
 
   const handleSelectChat = async (chatId: string) => {
     if (!chatId) return;
-    
+
     try {
       // Clean up empty chats before selecting new one
-      const nonEmptyChats = store.chats.filter(chat => 
+      const nonEmptyChats = store.chats.filter(chat =>
         chat.chat_history?.length > 0 || chat.chat_id === chatId
       );
       dispatch({ type: 'SET_CHATS', payload: nonEmptyChats });
-      
+
       dispatch({ type: 'SET_CURRENT_CHAT', payload: chatId });
       const selectedChat = store.chats.find(chat => chat.chat_id === chatId);
       if (selectedChat) {
@@ -90,7 +91,7 @@ export const useChatActions = () => {
       setTimeout(() => inputRef.current?.focus(), 10);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to access chat';
-      
+
       toast.error('Error accessing chat', {
         description: errorMessage
       });
@@ -102,35 +103,34 @@ export const useChatActions = () => {
   };
 
   const sendMessage = async (messageText: string) => {
-    if (!messageText.trim()) {
-      toast.error('Cannot send empty message');
-      return;
-    }
-    
-    if (!store.currentChatId) {
-      toast.error('No active chat selected');
-      return;
-    }
-    
-    // Check credits first with consistent toast style
+    // Credit check
     if (!store.credits || parseFloat(String(store.credits)) <= 0.05) {
       toast.error('Insufficient credits', {
-        description: 'Please add more credits to continue using the service.',
+        description: 'Please add more credits to continue.',
         action: {
           label: 'Add Credits',
           onClick: () => window.location.href = '/user/credits'
-        },
-        duration: 5000
+        }
       });
       return;
     }
 
+    if (!messageText.trim()) {
+      toast.error('Cannot send empty message');
+      return;
+    }
+
+    if (!store.currentChatId) {
+      toast.error('No active chat selected');
+      return;
+    }
+
     dispatch({ type: 'SET_LOADING', payload: true });
-    
+
     try {
       const currentChatId = store.currentChatId;
       if (!currentChatId) throw new Error('No active chat');
-      
+
       // Create optimistic user message
       const optimisticUserMessage = {
         user_input: messageText,
@@ -139,13 +139,13 @@ export const useChatActions = () => {
         model: store.selectedModel,
       };
 
-      // Add optimistic user message immediately
-      dispatch({ 
-        type: 'ADD_MESSAGE', 
-        payload: { 
-          chatId: currentChatId, 
-          message: optimisticUserMessage 
-        } 
+      // Optimistic update
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          chatId: currentChatId,
+          message: optimisticUserMessage
+        }
       });
 
       // Send message to API
@@ -161,17 +161,17 @@ export const useChatActions = () => {
 
       // Check if this was a temp chat that's been replaced
       let activeChatId = store.currentChatId;
-      
+
       // Handle replacement only if not already handled by event
       if (response.replaced && !replacedChatIds.current.has(response.replaced.oldId)) {
         activeChatId = response.replaced.newId;
-        dispatch({ 
-          type: 'REPLACE_TEMP_CHAT', 
-          payload: { 
-            tempId: response.replaced.oldId, 
+        dispatch({
+          type: 'REPLACE_TEMP_CHAT',
+          payload: {
+            tempId: response.replaced.oldId,
             realId: response.replaced.newId,
-            updates: {} 
-          } 
+            updates: {}
+          }
         });
         // Clear the tracked replacement
         replacedChatIds.current.delete(response.replaced.oldId);
@@ -187,12 +187,12 @@ export const useChatActions = () => {
       };
 
       // Use the most current chat ID for adding the message
-      dispatch({ 
-        type: 'ADD_MESSAGE', 
-        payload: { 
-          chatId: activeChatId || currentChatId, 
-          message: aiMessage 
-        } 
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          chatId: activeChatId || currentChatId,
+          message: aiMessage
+        }
       });
 
       // Update credits and reorder
@@ -206,9 +206,9 @@ export const useChatActions = () => {
 
     } catch (error: any) {
       logger.error('Send Message Error:', error);
-      
+
       const errorMessage = error instanceof Error ? error.message : 'Please try again';
-      
+
       // Special handling for insufficient credits
       if (errorMessage.toLowerCase().includes('insufficient credits')) {
         toast.error('Insufficient credits', {
@@ -229,8 +229,8 @@ export const useChatActions = () => {
       // Add error message to chat
       dispatch({
         type: 'ADD_MESSAGE',
-        payload: { 
-          chatId: store.currentChatId, 
+        payload: {
+          chatId: store.currentChatId,
           message: {
             user_input: '',
             api_response: `Error: ${errorMessage}`,
@@ -250,10 +250,10 @@ export const useChatActions = () => {
     try {
       // Check if deleting current chat
       const isCurrentChat = store.currentChatId === chatId;
-      
+
       // Remove from UI immediately for better UX
       dispatch({ type: 'DELETE_CHAT', payload: chatId });
-      
+
       // Reset current chat if needed
       if (isCurrentChat) {
         dispatch({ type: 'SET_CURRENT_CHAT', payload: null });
@@ -262,7 +262,7 @@ export const useChatActions = () => {
       // Then try server deletion (for non-temp chats)
       if (!chatId.startsWith('temp_')) {
         const response = await chatService.deleteChat(chatId);
-        
+
         if (!response.success) {
           throw new Error(response.message || 'Failed to delete chat on server');
         }
@@ -270,13 +270,13 @@ export const useChatActions = () => {
 
       // Force refresh chat list
       await fetch('/api/chat/getChats').then(res => res.json());
-      
+
     } catch (error) {
       logger.error('Delete Chat Error:', error);
       toast.error('Failed to delete chat', {
         description: 'Please try again later'
       });
-      
+
       // Refresh chat list on error to ensure sync with server
       const refreshChats = useSWRConfig().mutate;
       refreshChats('/api/chat/getChats');
@@ -286,27 +286,27 @@ export const useChatActions = () => {
   const handleEditChat = async (chatId: string, newName: string) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      
+
       // Optimistically update the chat title and order
-      dispatch({ 
-        type: 'UPDATE_CHAT', 
-        payload: { 
-          chatId, 
-          updates: { 
+      dispatch({
+        type: 'UPDATE_CHAT',
+        payload: {
+          chatId,
+          updates: {
             chat_title: newName,
             updated_at: new Date().toISOString()
-          } 
-        } 
+          }
+        }
       });
-      
+
       // Reorder immediately for better UX
       dispatch({ type: 'REORDER_CHATS', payload: chatId });
 
       // Then save to server
-      const updatedChat = await chatService.updateChat(chatId, { 
-        chatTitle: newName 
+      const updatedChat = await chatService.updateChat(chatId, {
+        chatTitle: newName
       });
-      
+
       if (!updatedChat.success) {
         // If server update fails, show error but keep optimistic update
         throw new Error('Failed to update chat on server');

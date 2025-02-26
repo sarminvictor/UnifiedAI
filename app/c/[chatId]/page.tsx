@@ -1,3 +1,4 @@
+// app/c/[chatId]/page.tsx
 import { MainContent } from '@/components/MainContent';
 
 interface ChatPageProps {
@@ -7,5 +8,5 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ params }: ChatPageProps) {
-  return <MainContent />;
+  return <MainContent chatId={params.chatId} />;
 }

@@ -13,12 +13,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.group('Chat Store Action');
     console.log('Action:', action);
     console.log('Previous State:', get());
-    
+
     switch (action.type) {
       case 'SET_CHATS': {
         // Filter out empty chats except for the current one
         const currentChatId = get().currentChatId;
-        const filteredChats = action.payload.filter(chat => 
+        const filteredChats = action.payload.filter(chat =>
           chat.isTemp || chat.chat_history?.length > 0 || chat.chat_id === currentChatId
         );
         // Update URL when setting chats
@@ -51,7 +51,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { chatId, message } = action.payload;
         const chats = [...get().chats];
         const chatIndex = chats.findIndex(c => c.chat_id === chatId);
-        
+
         if (chatIndex !== -1) {
           chats[chatIndex] = {
             ...chats[chatIndex],
@@ -66,7 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const chatId = action.payload;
         const chats = [...get().chats];
         const chatIndex = chats.findIndex(c => c.chat_id === chatId);
-        
+
         if (chatIndex !== -1) {
           const [chat] = chats.splice(chatIndex, 1);
           chats.unshift(chat);
@@ -78,7 +78,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { chatId, updates } = action.payload;
         const chats = [...get().chats];
         const chatIndex = chats.findIndex(c => c.chat_id === chatId);
-        
+
         if (chatIndex !== -1) {
           chats[chatIndex] = {
             ...chats[chatIndex],
@@ -92,7 +92,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { tempId, realId, updates } = action.payload;
         const chats = [...get().chats];
         const chatIndex = chats.findIndex(c => c.chat_id === tempId);
-        
+
         if (chatIndex !== -1) {
           chats[chatIndex] = {
             ...chats[chatIndex],
@@ -102,9 +102,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           };
           // Update URL when replacing temp chat
           window?.history?.pushState({}, '', `/c/${realId}`);
-          set({ 
+          set({
             chats,
-            currentChatId: realId 
+            currentChatId: realId
           });
         }
         break;
@@ -112,12 +112,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       case 'DELETE_CHAT': {
         const chatId = action.payload;
         const currentChatId = get().currentChatId;
-        
+
         set(state => ({
           chats: state.chats.filter(chat => chat.chat_id !== chatId),
           currentChatId: currentChatId === chatId ? null : currentChatId
         }));
-        
+
         // Clear URL if deleting current chat
         if (currentChatId === chatId) {
           window?.history?.pushState({}, '', '/');
@@ -126,19 +126,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       case 'SET_CHATS_PRESERVE_SELECTION': {
         const { chats, preserveId } = action.payload;
-        const filteredChats = chats.filter(chat => 
+        const filteredChats = chats.filter(chat =>
           chat.isTemp || chat.chat_history?.length > 0 || chat.chat_id === preserveId
         );
-        
+
         // Check if preserveId still exists in the new chat list
         const chatExists = filteredChats.some(chat => chat.chat_id === preserveId);
-        
-        set({ 
+
+        set({
           chats: filteredChats,
           // Only keep the currentChatId if it exists in the new chat list
           currentChatId: chatExists ? preserveId : get().currentChatId
         });
-        
+
         // Update URL only if needed and the chat exists
         if (preserveId && chatExists && !preserveId.startsWith('temp_')) {
           window?.history?.pushState({}, '', `/c/${preserveId}`);
@@ -146,7 +146,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break;
       }
     }
-    
+
     console.log('New State:', get());
     console.groupEnd();
   }

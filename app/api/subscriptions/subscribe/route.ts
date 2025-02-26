@@ -23,17 +23,32 @@ function getSubscriptionEndDate(startDate: Date): Date {
 }
 
 export async function POST(request: NextRequest) {
-  // Authentication is handled by global middleware
-  const session = await getServerSession();
-  const { planId } = await request.json();
-
   try {
-    // Plan validation is handled by global middleware
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { email: session.user.email }
-      });
+    const session = await getServerSession();
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
 
+    const { planId } = await request.json();
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: session.user.email ?? undefined
+      }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
       // Check for existing pending subscription
       const existingPending = await tx.subscription.findFirst({
         where: {

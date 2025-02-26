@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { Providers } from './providers';
-import './globals.css';
+import { Providers } from '../lib/providers';
+import 'styles/globals.css';
 import { Toaster } from 'sonner';
 import { getSession } from 'next-auth/react';
 
@@ -39,15 +39,12 @@ export default function RootLayout({
               background: 'white',
               border: '1px solid #e2e8f0'
             },
-            error: {
-              style: {
-                background: '#f44336',
-                color: 'white',
-                border: 'none'
-              },
-              duration: 8000, // Longer duration for errors
-            }
+            classNames: {
+              error: 'bg-red-500 text-white border-none',
+            },
+            duration: 8000
           }}
+          theme="light"
           // Allow multiple toasts to be more visible
           expand={true}
           visibleToasts={3}

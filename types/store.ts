@@ -1,4 +1,4 @@
-export interface ChatMessage {
+export interface BaseMessage {
   userInput: string;
   apiResponse: string;
   inputType: string;
@@ -10,8 +10,12 @@ export interface ChatMessage {
   creditsDeducted?: string;
 }
 
+export interface ChatMessage extends BaseMessage {
+  chat_id: string | null;
+  messageId: string;
+}
+
 export interface ChatSession {
-  chat_history: any;
   chat_id: string;
   chat_title?: string;
   messages: ChatMessage[];
@@ -38,9 +42,10 @@ export interface ChatState {
 
 export type ApiResponse<T> = {
   data: T;
-  status: string;
+  status: 'success' | 'error';
+  message?: string;
 };
 
-export type ChatApiResponse = {
+export type ChatApiResponse = ApiResponse<{
   activeChats: ChatSession[];
-};
+}>;

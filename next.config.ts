@@ -1,10 +1,23 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
-  env: {
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  webpack: (config: { optimization: any; }, { dev, isServer }: any) => {
+    // Add optimization for development
+    if (dev && !isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+        },
+      };
+    }
+    return config;
   },
-};
+  experimental: {
+    // Remove appDir as it's now default in Next.js 14
+    optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai']
+  },
+  poweredByHeader: false,
+}
 
-export default nextConfig;
+module.exports = nextConfig;

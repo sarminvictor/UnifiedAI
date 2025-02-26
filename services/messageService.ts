@@ -10,12 +10,12 @@ export const messageService = {
       let actualChatId = chatId;
       let chatResponse;
       let replacementInfo = null;
-      
+
       // Create a new chat if this is a temporary ID
       if (isTemp) {
         // Generate a real UUID for the chat
         const realChatId = generateChatId();
-        
+
         try {
           // Create the chat in the database
           chatResponse = await fetch('/api/chat/saveChat', {
@@ -39,9 +39,9 @@ export const messageService = {
 
           actualChatId = chatData.data.chat_id;
           replacementInfo = { oldId: chatId, newId: actualChatId };
-          
+
           // Emit event for immediate UI update
-          window.dispatchEvent(new CustomEvent('replaceTempChat', { 
+          window.dispatchEvent(new CustomEvent('replaceTempChat', {
             detail: replacementInfo
           }));
         } catch (createError) {
@@ -114,6 +114,8 @@ export const messageService = {
       outputType: 'text',
       timestamp: new Date().toISOString(),
       contextId: chatId,
+      chat_id: chatId,
+      messageId: crypto.randomUUID(),
     };
   },
 
@@ -125,6 +127,8 @@ export const messageService = {
       outputType: 'text',
       timestamp: new Date().toISOString(),
       contextId: chatId,
+      chat_id: chatId,
+      messageId: crypto.randomUUID(),
       model: response.model,
       tokensUsed: response.tokensUsed,
       creditsDeducted: response.creditsDeducted,

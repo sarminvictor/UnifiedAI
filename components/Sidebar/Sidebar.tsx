@@ -5,7 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation"; // Changed from next/router
 import ChatList from "./ChatList";
 import { useChatStore } from '@/store/chat/chatStore';
-import CreditsDisplay from './CreditsDisplay';
+
 
 interface ChatSession {
   chat_id: string;

@@ -2,7 +2,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { MODEL_CONFIGS } from '@/constants/ai.constants';
+import { MODEL_CONFIGS } from '@/utils/ai.constants';
 import { ModelName } from '@/types/ai.types';
 import { serverLogger } from '@/utils/serverLogger';
 
@@ -20,13 +20,13 @@ export class ServerModelFactory {
           }
           return new ChatOpenAI({
             openAIApiKey: process.env.OPENAI_API_KEY,
-            modelName: "gpt-3.5-turbo",  // Changed from gpt-4 to gpt-3.5-turbo
-            temperature: 0.7,
-            maxTokens: 500,
+            modelName: "gpt-3.5-turbo",
             ...config
           });
 
         // ...rest of model cases...
+        default:
+          throw new Error(`Unsupported model: ${modelName}`);
       }
     } catch (error) {
       serverLogger.error('Model creation error:', {

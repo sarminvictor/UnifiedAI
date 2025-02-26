@@ -2,14 +2,14 @@ import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { MODEL_CONFIGS } from '@/constants/ai.constants';
+import { MODEL_CONFIGS } from '@/utils/ai.constants';
 import { ModelName } from '@/types/ai.types';
 import { serverLogger } from '@/utils/serverLogger';
 
 export class AIModelFactory {
   public static async createModel(modelName: ModelName): Promise<BaseChatModel> {
     try {
-      serverLogger.info('Creating AI model:', { 
+      serverLogger.info('Creating AI model:', {
         modelName,
         config: MODEL_CONFIGS[modelName],
         hasOpenAIKey: !!process.env.OPENAI_API_KEY,
@@ -43,7 +43,7 @@ export class AIModelFactory {
           if (!process.env.ANTHROPIC_API_KEY) {
             throw new Error('Missing Anthropic API key');
           }
-          return new ChatAnthropic({ 
+          return new ChatAnthropic({
             anthropicApiKey: process.env.ANTHROPIC_API_KEY,
             ...config
           });
@@ -52,7 +52,7 @@ export class AIModelFactory {
           if (!process.env.GOOGLE_API_KEY) {
             throw new Error('Missing Google API key');
           }
-          return new ChatGoogleGenerativeAI({ 
+          return new ChatGoogleGenerativeAI({
             apiKey: process.env.GOOGLE_API_KEY,
             ...config
           });

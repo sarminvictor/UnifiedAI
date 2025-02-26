@@ -15,7 +15,11 @@ import { mutate } from 'swr';
 import { useChats } from '@/hooks/chat/useChats';
 import { logger } from '@/utils/logger';
 
-export const MainContent = () => {
+interface MainContentProps {
+  chatId: string;
+}
+
+export const MainContent = ({ chatId }: MainContentProps) => {
   const { chats, currentChatId, selectedModel, isLoading, credits, dispatch } = useChatStore();
   const { error, mutate: refreshChats } = useChats();
   const actions = useChatActions();
@@ -144,8 +148,8 @@ export const MainContent = () => {
     });
     
     return messages
-      .filter(msg => !!msg?.user_input || !!msg?.api_response)
-      .map(msg => ({
+      .filter((msg: { user_input: any; api_response: any; }) => !!msg?.user_input || !!msg?.api_response)
+      .map((msg: { user_input: any; api_response: any; timestamp: any; model: any; credits_deducted: any; }) => ({
         userInput: msg.user_input || '',
         apiResponse: msg.api_response || '',
         timestamp: msg.timestamp,
@@ -157,7 +161,7 @@ export const MainContent = () => {
   return (
     <div className="flex h-screen">
       <Sidebar
-        chatSessions={chats}
+        chatSessions={chats.map(chat => ({...chat, model: chat.model || 'ChatGPT'}))}
         currentChatId={currentChatId}
         setCurrentChatId={actions.handleSelectChat}
         handleStartNewChat={actions.handleStartNewChat}

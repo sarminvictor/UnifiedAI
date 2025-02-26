@@ -1,4 +1,4 @@
-import { TOKEN_RATES, CHAT_CONSTANTS } from '@/constants/ai.constants';
+import { TOKEN_RATES, CHAT_CONSTANTS } from '@/utils/ai.constants';
 import { TokenInfo, ModelName } from '@/types/ai.types';
 
 export class TokenCalculator {

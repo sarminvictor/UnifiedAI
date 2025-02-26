@@ -14,7 +14,7 @@ import { ChatService } from '@/services/db/chatService';
 import { UserService } from '@/services/db/userService';
 import { APIUsageService } from '@/services/db/apiUsageService';
 import { ModelName, ChatMessage } from '@/types/ai.types';
-import { SYSTEM_PROMPTS, TOKEN_RATES } from '@/constants/ai.constants';
+import { SYSTEM_PROMPTS, TOKEN_RATES } from '@/utils/ai.constants';
 import { logger } from '@/utils/logger';
 import { serverLogger } from '@/utils/serverLogger';
 import { ServerModelFactory } from '@/services/ai/serverModelFactory';
@@ -35,8 +35,8 @@ function createChain(llm: BaseChatModel, messages: (SystemMessage | HumanMessage
     prompt: ChatPromptTemplate.fromMessages(messages),
     memory: new BufferMemory({
       chatHistory: new ChatMessageHistory(
-        previousMessages.map(msg => 
-          msg.user_input 
+        previousMessages.map(msg =>
+          msg.user_input
             ? new HumanMessage(msg.user_input)
             : new AIMessage(msg.api_response || "")
         )
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Validate model name using type assertion
     if (!modelName || !Object.values(ModelName).includes(modelName as ModelName)) {
-      serverLogger.error('Invalid model name:', { 
+      serverLogger.error('Invalid model name:', {
         modelName,
         validModels: Object.values(ModelName)
       });
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     // Check credits before processing
     const currentCredits = new Decimal(user.credits_remaining);
     const requiredCredits = new Decimal('0.1'); // Minimum required credits
-    
+
     if (!currentCredits.greaterThanOrEqualTo(requiredCredits)) {
       return NextResponse.json(
         { success: false, message: 'Insufficient credits' },
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Verify chat ownership and status
     const chat = await prisma.chat.findFirst({
-      where: { 
+      where: {
         chat_id: chatId,
         user_id: user.id,
         deleted: false  // Add check for deleted status
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     // Initialize AI components with simplified chain creation
     const llm = await ServerModelFactory.createModel(modelName);
-    
+
     // Don't create user message here, it's already created by saveMessage
     const previousMessages = await ChatService.getPreviousMessages(chatId);
 
@@ -136,8 +136,8 @@ export async function POST(request: NextRequest) {
         `${SYSTEM_PROMPTS.DEFAULT_CHAT}
         ${chat.chat_summary ? `\nContext from previous conversation: ${chat.chat_summary}` : ''}`
       ),
-      ...previousMessages.map(msg => 
-        msg.user_input 
+      ...previousMessages.map(msg =>
+        msg.user_input
           ? new HumanMessage(msg.user_input)
           : new AIMessage(msg.api_response || "")
       ),
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
       // Get AI response
       const response = await chain.call({ input: userMessage });
-      
+
       // Log the full response for debugging
       serverLogger.debug('AI Response details:', {
         responseKeys: Object.keys(response),
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
           currentUserMessage: userMessage,
           currentAiResponse: response.text
         };
-        
+
         try {
           const newSummary = await SummaryManager.generateSummary(summaryConfig);
           if (newSummary) {
@@ -278,8 +278,8 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'AI processing failed',
           details: error instanceof Error ? error.message : 'Unknown error'
         },
@@ -297,21 +297,21 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof ServerError) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details
         },
         { status: 400 }
       );
     }
 
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Failed to process chat request',
-        details: process.env.NODE_ENV === 'development' ? 
+        details: process.env.NODE_ENV === 'development' ?
           error instanceof Error ? error.message : 'Unknown error'
           : undefined
       },

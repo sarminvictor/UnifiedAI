@@ -19,12 +19,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Accept test user ID header in non-production environments
-    const testUserId = process.env.NODE_ENV !== 'production' ? 
-      request.headers.get('x-test-user-id') : 
+    const testUserId = process.env.NODE_ENV !== 'production' ?
+      request.headers.get('x-test-user-id') :
       undefined;
 
-    const session = testUserId ? 
-      { user: { id: testUserId } } : 
+    const session = testUserId ?
+      { user: { id: testUserId } } :
       await getServerSession(authOptions);
 
     if (!session?.user?.id) {
@@ -92,10 +92,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     serverLogger.error('❌ Error saving message:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Failed to save message',
-        details: process.env.NODE_ENV === 'development' ? 
+        details: process.env.NODE_ENV === 'development' ?
           error instanceof Error ? error.message : 'Unknown error'
           : undefined
       },

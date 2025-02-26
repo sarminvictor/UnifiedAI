@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useChatStore } from '@/store/chat/chatStore';
+import { toast } from 'sonner';
 
 interface ChatInputProps {
   onSendMessage: ((message: string) => void) | undefined;
@@ -47,7 +48,9 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
     
     const message = input;
     setInput('');
-    await onSendMessage(message);
+    if (onSendMessage) {
+      onSendMessage(message);
+    }
   };
 
   const getPlaceholder = () => {

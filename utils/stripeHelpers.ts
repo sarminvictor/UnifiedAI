@@ -1,3 +1,4 @@
+import type { Stripe } from 'stripe';
 import stripe from './stripe';
 import prisma from '@/lib/prismaClient';
 
@@ -5,6 +6,10 @@ export async function verifyAndUpdateSubscription(sessionId: string) {
     try {
         // Add logging
         console.log('Starting subscription verification for session:', sessionId);
+
+        if (!stripe) {
+            throw new Error('Stripe client not initialized');
+        }
 
         // Retrieve the checkout session from Stripe
         const session = await stripe.checkout.sessions.retrieve(sessionId, {

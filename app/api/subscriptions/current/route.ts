@@ -43,6 +43,9 @@ export async function GET(request: NextRequest) {
         if (subscription.status === "Pending Downgrade" &&
             subscription.stripe_payment_id &&
             subscription.stripe_payment_id !== 'free_tier') {
+            if (!stripe) {
+                throw new Error('Stripe instance not initialized');
+            }
             try {
                 await stripe.subscriptions.update(subscription.stripe_payment_id, {
                     cancel_at_period_end: true

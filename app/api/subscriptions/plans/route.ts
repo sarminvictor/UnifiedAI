@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";  // Use your existing prisma client
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { getStripePriceId } from "@/utils/stripe";
+import { getStripePriceId, PLAN_TO_STRIPE_PRODUCT } from "@/utils/stripe";
+
+// Type guard to check if a string is a valid plan name
+function isValidPlanName(name: string): name is keyof typeof PLAN_TO_STRIPE_PRODUCT {
+  return name in PLAN_TO_STRIPE_PRODUCT;
+}
 
 export async function GET() {
   try {
@@ -23,11 +28,13 @@ export async function GET() {
 
     console.log('📦 Found plans:', plans.length);
 
-    // Fetch Stripe prices server-side
+    // Fetch Stripe prices server-side with type checking
     const plansWithPrices = await Promise.all(
       plans.map(async (plan) => ({
         ...plan,
-        stripePriceId: await getStripePriceId(plan.plan_name)
+        stripePriceId: isValidPlanName(plan.plan_name)
+          ? await getStripePriceId(plan.plan_name)
+          : null
       }))
     );
 

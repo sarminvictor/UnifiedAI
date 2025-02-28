@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prismaClient";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { getServerSession } from "@/lib/auth";
+
+const prisma = new PrismaClient();
 import stripe from "@/utils/stripe";
 import { sendSubscriptionUpdate } from "@/utils/sse";
+import { Subscription, Plan } from '@prisma/client';
 
 
 export async function POST(request: NextRequest) {
@@ -33,7 +36,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "No subscription to restore" }, { status: 404 });
         }
 
-        let updatedSubscription;
+        type SubscriptionWithPlan = Prisma.SubscriptionGetPayload<{
+            include: { plan: true }
+        }>;
+
+        let updatedSubscription: SubscriptionWithPlan | null = null;
 
         await prisma.$transaction(async (tx) => {
             // Update subscription status - don't change payment_status
@@ -49,6 +56,9 @@ export async function POST(request: NextRequest) {
             if (currentSubscription.stripe_payment_id &&
                 currentSubscription.stripe_payment_id !== 'free_tier') {
                 try {
+                    if (!stripe) {
+                        throw new Error("Stripe is not initialized");
+                    }
                     await stripe.subscriptions.update(
                         currentSubscription.stripe_payment_id,
                         { cancel_at_period_end: false }
@@ -72,10 +82,14 @@ export async function POST(request: NextRequest) {
             });
         });
 
+        if (!updatedSubscription) {
+            throw new Error("Subscription update failed");
+        }
+
         return NextResponse.json({
             success: true,
             subscription: updatedSubscription,
-            message: `Auto-renewal restored for ${updatedSubscription.plan.plan_name} plan`
+            message: `Auto-renewal restored for ${currentSubscription.plan.plan_name} plan`
         });
     } catch (error) {
         console.error("❌ Restore subscription error:", error);

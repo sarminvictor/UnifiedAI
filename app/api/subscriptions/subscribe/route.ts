@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
           data: { status: "Pending Downgrade" }
         });
 
-        if (activeSubscription.stripe_payment_id !== "free_tier") {
+        if (activeSubscription.stripe_payment_id !== "free_tier" && stripe) {
           await stripe.subscriptions.update(
             activeSubscription.stripe_payment_id,
             { cancel_at_period_end: true }
@@ -90,16 +90,27 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ Handle paid plan changes
-    const stripePriceId = await getStripePriceId(plan.plan_name);
+    if (!isValidPlanName(plan.plan_name)) {
+      return NextResponse.json({ error: "Invalid plan name" }, { status: 400 });
+    }
+    const stripePriceId = await getStripePriceId(plan.plan_name as "Free" | "Starter" | "Pro");
     if (!stripePriceId) {
       console.error(`❌ Could not retrieve Stripe price ID for plan: ${plan.plan_name}`);
       return NextResponse.json({ error: "Subscription setup failed" }, { status: 500 });
     }
 
+    if (!stripe) {
+      return NextResponse.json({ error: "Stripe is not configured" }, { status: 500 });
+    }
+
+    // Now TypeScript knows stripePriceId is definitely a string, not null
     const checkoutSession = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'subscription',
-      line_items: [{ price: stripePriceId, quantity: 1 }],
+      payment_method_types: ['card'] as const,
+      mode: 'subscription' as const,
+      line_items: [{
+        price: stripePriceId, // TypeScript error fixed
+        quantity: 1
+      }],
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions/payment-success?result=success&from=stripe&plan=${plan.plan_name}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions/payment-failed?result=failed&from=stripe`,
       customer_email: session.user.email,
@@ -124,3 +135,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Subscription process failed" }, { status: 500 });
   }
 }
+function isValidPlanName(plan_name: string): boolean {
+  const validPlans = ['starter', 'pro', 'enterprise'];
+  return validPlans.includes(plan_name.toLowerCase());
+}
+

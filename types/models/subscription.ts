@@ -11,4 +11,5 @@ export interface SubscriptionDetails {
     isDowngradePending: boolean;
     creditsRemaining: string;
     planId: string;
+    stripe_info: string | null;
 }

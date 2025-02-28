@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import type { ReturnType } from '@/types/utils';
 import { useSubscriptionState } from './useSubscriptionState';
 
 export function useSubscriptionUI(state: ReturnType<typeof useSubscriptionState>) {
@@ -65,7 +64,7 @@ export function useSubscriptionUI(state: ReturnType<typeof useSubscriptionState>
 
         return isPro
             ? "bg-blue-600 text-white hover:bg-blue-500"
-            : "bg-gray-900 text-white hover:bg-gray-800";
+            : "bg-gray-200 text-gray-400 hover:bg-gray-800";
     }, [isCurrentPlanActive, subscriptionDetails, canChangePlan, isLoading]);
 
     return {

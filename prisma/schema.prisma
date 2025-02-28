@@ -38,7 +38,7 @@ model Subscription {
   end_date            DateTime
   status              String
   payment_status      String
-  discount_applied    Boolean             @default(false)
+  stripe_info         String?             // Format: "status | customer | product"
   stripe_payment_id   String
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt

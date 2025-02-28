@@ -96,7 +96,23 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     try {
         const stripeSubscription = await stripe.subscriptions.retrieve(session.subscription as string);
+        const stripeCustomer = await stripe.customers.retrieve(stripeSubscription.customer as string);
+        if ('deleted' in stripeCustomer) {
+            throw new Error('Customer has been deleted');
+        }
         const stripeProductId = stripeSubscription.items.data[0].price.product as string;
+
+        // Get Stripe product details
+        const stripeProduct = await stripe.products.retrieve(
+            stripeSubscription.items.data[0].price.product as string
+        );
+
+        // Use raw Stripe status
+        const stripeInfo = [
+            stripeSubscription.status.toUpperCase(),  // Raw Stripe status (e.g., "active", "trialing")
+            stripeCustomer.name || stripeCustomer.email,
+            stripeProduct.name
+        ].join(' | ');
 
         // Type-safe plan name lookup
         const planName = Object.entries(PLAN_TO_STRIPE_PRODUCT).find(
@@ -170,7 +186,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
                     start_date: new Date(),
                     end_date: new Date(stripeSubscription.current_period_end * 1000),
                     payment_status: 'Paid',
-                    stripe_payment_id: stripeSubscription.id
+                    stripe_payment_id: stripeSubscription.id,
+                    stripe_info: stripeInfo,
                 }
             });
 
@@ -213,93 +230,77 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-    const eventKey = `${subscription.id}-${subscription.current_period_end}`;
-    if (processedEvents.has(eventKey)) {
-        console.log('🔄 Skipping duplicate event:', eventKey);
-        return NextResponse.json({ received: true, skipped: true });
-    }
-
-    processedEvents.add(eventKey);
-    setTimeout(() => processedEvents.delete(eventKey), DEBOUNCE_TIMEOUT);
-
-    let userId = subscription.metadata?.userId;
-    if (!userId) {
-        const dbSub = await prisma.subscription.findFirst({
-            where: { stripe_payment_id: subscription.id }
-        });
-        if (!dbSub?.user_id) return NextResponse.json({ received: true });
-        userId = dbSub.user_id;
-    }
-
-    const endDate = new Date(subscription.current_period_end * 1000);
-    const newStatus = subscription.cancel_at_period_end ? 'Pending Downgrade' : 'Active';
+    // ...existing deduplication code...
 
     try {
-        // Get subscription and plan details
-        const dbSubscription = await prisma.subscription.findFirst({
-            where: { stripe_payment_id: subscription.id },
-            include: { plan: true }
-        });
-
-        // Check if this is a restoration of auto-renewal
-        if (newStatus === 'Active' && subscription.cancel_at_period_end === false) {
-            console.log(`✅ Subscription ${subscription.id} auto-renewal restored`);
-
-            // Update subscription in database - don't change payment_status
-            await prisma.$transaction(async (tx) => {
-                const updatedSub = await tx.subscription.updateMany({
-                    where: {
-                        user_id: userId,
-                        stripe_payment_id: subscription.id
-                    },
-                    data: {
-                        end_date: endDate,
-                        status: newStatus
-                        // Removed payment_status update
-                    }
-                });
-
-                // Log transaction for auto-renewal restoration
-                await tx.creditTransaction.create({
-                    data: {
-                        user_id: userId,
-                        subscription_id: subscription.id,
-                        credits_added: dbSubscription?.plan.credits_per_month || '0',
-                        credits_deducted: '0',
-                        payment_method: 'System',
-                        description: `Auto-renewal restored: ${dbSubscription ? dbSubscription.plan.plan_name : 'None'}`
-                    }
-                });
+        const userId = subscription.metadata?.userId;
+        if (!userId) {
+            const dbSub = await prisma.subscription.findFirst({
+                where: { stripe_payment_id: subscription.id }
             });
-
-            // Update Stripe metadata
-            await stripe.subscriptions.update(subscription.id, {
-                metadata: {
-                    ...subscription.metadata,
-                    autoRenewalRestored: 'true',
-                    restoredAt: new Date().toISOString()
-                }
-            });
-        } else if (newStatus === 'Pending Downgrade') {
-            console.log(`⚠️ Subscription ${subscription.id} marked for downgrade`);
-
-            await prisma.subscription.updateMany({
-                where: { user_id: userId, stripe_payment_id: subscription.id },
-                data: { end_date: endDate, status: newStatus }
-            });
-        } else {
-            // Regular subscription update
-            await prisma.subscription.updateMany({
-                where: { user_id: userId, stripe_payment_id: subscription.id },
-                data: { end_date: endDate, status: newStatus }
-            });
+            if (!dbSub?.user_id) {
+                console.error("❌ User ID not found for subscription:", subscription.id);
+                return;
+            }
         }
 
-        return NextResponse.json({
-            received: true,
-            status: newStatus,
-            autoRenewalRestored: newStatus === 'Active' && !subscription.cancel_at_period_end
+        // 1. Fetch and validate fresh subscription data
+        const freshStripeData = await stripe.subscriptions.retrieve(subscription.id);
+        console.log("🔍 Stripe Subscription Data:", JSON.stringify(freshStripeData, null, 2));
+
+        if (!freshStripeData || !freshStripeData.status) {
+            console.error("❌ Missing Stripe subscription status.");
+            return;
+        }
+
+        // 2. Validate subscription items
+        if (!freshStripeData.items?.data.length) {
+            console.error("❌ Subscription has no valid items.");
+            return;
+        }
+
+        // 3. Fetch and validate customer data
+        const stripeCustomer = await stripe.customers.retrieve(freshStripeData.customer as string);
+        console.log("🔍 Stripe Customer Data:", JSON.stringify(stripeCustomer, null, 2));
+
+        if ('deleted' in stripeCustomer) {
+            throw new Error('❌ Customer has been deleted.');
+        }
+
+        const customerNameOrEmail = stripeCustomer.name || stripeCustomer.email || "Unknown Customer";
+
+        // 4. Fetch and validate product data
+        const stripeProductId = freshStripeData.items.data[0]?.price?.product as string;
+        if (!stripeProductId) {
+            console.error("❌ Stripe Product ID not found in subscription items.");
+            return;
+        }
+
+        const productDetails = await stripe.products.retrieve(stripeProductId);
+        console.log("🔍 Stripe Product Data:", JSON.stringify(productDetails, null, 2));
+
+        const productName = productDetails.name || "Unknown Product";
+
+        // 5. Store raw data
+        const stripeInfo = [
+            freshStripeData.status.toUpperCase(),  // Raw Stripe status
+            customerNameOrEmail,                   // Customer info
+            productName                           // Product name
+        ].join(" | ");
+
+        console.log("✅ Saving Stripe Info:", stripeInfo);
+
+        // Update DB with validated data
+        await prisma.subscription.updateMany({
+            where: { user_id: userId, stripe_payment_id: subscription.id },
+            data: {
+                end_date: new Date(freshStripeData.current_period_end * 1000),
+                status: freshStripeData.cancel_at_period_end ? 'Pending Downgrade' : 'Active', // Our DB status
+                stripe_info: stripeInfo  // Raw Stripe status and details
+            }
         });
+
+        // ...rest of existing code...
     } catch (error) {
         console.error('❌ Subscription update error:', error);
         return NextResponse.json({
@@ -366,17 +367,6 @@ async function createFreeSubscription(userId: string) {
         if (!freePlan) throw new Error('Free plan not found');
 
         // Create new Free subscription
-        const newSubscription = await tx.subscription.create({
-            data: {
-                user_id: userId,
-                plan_id: freePlan.plan_id,
-                status: 'Active',
-                start_date: new Date(),
-                end_date: new Date(8640000000000000), // Far future date
-                stripe_payment_id: 'free_tier',
-                payment_status: 'Free'
-            }
-        });
 
         // Update user credits
         await tx.user.update({

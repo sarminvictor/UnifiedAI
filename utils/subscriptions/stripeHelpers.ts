@@ -1,5 +1,5 @@
 import type { Stripe } from 'stripe';
-import stripe from './subscriptions/stripe';
+import stripe from '../subscriptions/stripe';
 import prisma from '@/lib/prismaClient';
 
 export async function verifyAndUpdateSubscription(sessionId: string) {

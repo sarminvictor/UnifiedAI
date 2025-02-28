@@ -1,3 +1,5 @@
+import { Plan } from "@prisma/client";
+
 export interface SubscriptionAPIResponse {
     planName: string;
     renewalDate: string;

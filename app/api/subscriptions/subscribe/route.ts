@@ -1,94 +1,126 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";
 import { getServerSession } from "@/lib/auth";
-
-function getSubscriptionEndDate(startDate: Date): Date {
-  const endDate = new Date(startDate.getTime());
-  
-  const currentMonth = endDate.getUTCMonth();
-  const currentDay = endDate.getUTCDate();
-  const currentHours = endDate.getUTCHours();
-  const currentMinutes = endDate.getUTCMinutes();
-  const currentSeconds = endDate.getUTCSeconds();
-  const currentMilliseconds = endDate.getUTCMilliseconds();
-
-  endDate.setUTCMonth(currentMonth + 1);
-  endDate.setUTCDate(currentDay);
-  endDate.setUTCHours(currentHours);
-  endDate.setUTCMinutes(currentMinutes);
-  endDate.setUTCSeconds(currentSeconds);
-  endDate.setUTCMilliseconds(currentMilliseconds);
-
-  return endDate;
-}
+import stripe from "@/utils/stripe";
+import { sendSubscriptionUpdate } from "@/utils/sse";
+import { getStripePriceId } from '@/utils/stripe';
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { planId } = await request.json();
+    if (!planId) {
+      return NextResponse.json({ error: "Plan ID is required" }, { status: 400 });
+    }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email ?? undefined
-      }
-    });
+    const [plan, user] = await Promise.all([
+      prisma.plan.findUnique({ where: { plan_id: planId } }),
+      prisma.user.findUnique({
+        where: { email: session.user.email },
+        include: {
+          subscriptions: {
+            where: { status: { in: ["Active", "Pending Downgrade"] } },
+            include: { plan: true },
+            orderBy: { created_at: 'desc' }
+          }
+        }
+      })
+    ]);
 
-    if (!user) {
+    if (!plan || !user) {
       return NextResponse.json(
-        { error: "User not found" },
+        { error: plan ? "User not found" : "Plan not found" },
         { status: 404 }
       );
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Check for existing pending subscription
-      const existingPending = await tx.subscription.findFirst({
-        where: {
-          user_id: user.id,
-          status: "Pending"
-        }
-      });
+    const activeSubscription = user.subscriptions[0];
 
-      if (existingPending) {
-        await tx.subscription.update({
-          where: { subscription_id: existingPending.subscription_id },
-          data: { 
-            status: "Canceled",
-            payment_status: "Canceled"
-          }
-        });
+    // ✅ Handle Free Plan downgrade
+    if (plan.plan_name.toLowerCase() === "free") {
+      if (!activeSubscription) {
+        return NextResponse.json({ error: "No active subscription to downgrade from" }, { status: 400 });
       }
 
-      const startDate = new Date();
-      const endDate = getSubscriptionEndDate(startDate);
+      await prisma.$transaction(async (tx) => {
+        // Mark as pending downgrade
+        await tx.subscription.update({
+          where: { subscription_id: activeSubscription.subscription_id },
+          data: { status: "Pending Downgrade" }
+        });
 
-      return await tx.subscription.create({
-        data: {
-          user_id: user.id,
-          plan_id: planId,
-          status: "Pending",
-          start_date: startDate,
-          end_date: endDate,
-          payment_status: "Pending",
-          stripe_payment_id: `mock_${Date.now()}_${user.id}`,
-        },
+        if (activeSubscription.stripe_payment_id !== "free_tier") {
+          await stripe.subscriptions.update(
+            activeSubscription.stripe_payment_id,
+            { cancel_at_period_end: true }
+          );
+        }
+
+        // Send immediate UI update with correct details
+        await sendSubscriptionUpdate(user.id, {
+          type: "subscription_updated",
+          details: {
+            planName: activeSubscription.plan.plan_name,
+            planId: activeSubscription.plan_id,
+            isDowngradePending: true,
+            renewalDate: activeSubscription.end_date,
+            creditsRemaining: user.credits_remaining
+          }
+        });
       });
+
+      return NextResponse.json({
+        success: true,
+        message: "Downgrade scheduled",
+        status: "Pending Downgrade",
+        endDate: activeSubscription.end_date,
+        // Add these fields for immediate UI update
+        details: {
+          planName: activeSubscription.plan.plan_name,
+          planId: activeSubscription.plan_id,
+          isDowngradePending: true,
+          renewalDate: activeSubscription.end_date,
+          creditsRemaining: user.credits_remaining
+        }
+      });
+    }
+
+    // ✅ Handle paid plan changes
+    const stripePriceId = await getStripePriceId(plan.plan_name);
+    if (!stripePriceId) {
+      console.error(`❌ Could not retrieve Stripe price ID for plan: ${plan.plan_name}`);
+      return NextResponse.json({ error: "Subscription setup failed" }, { status: 500 });
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      line_items: [{ price: stripePriceId, quantity: 1 }],
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions/payment-success?result=success&from=stripe&plan=${plan.plan_name}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions/payment-failed?result=failed&from=stripe`,
+      customer_email: session.user.email,
+      client_reference_id: user.id,
+      metadata: {
+        planId,
+        userId: user.id,
+        activeSubscriptionIds: JSON.stringify(user.subscriptions.map(sub => ({
+          id: sub.subscription_id,
+          stripeId: sub.stripe_payment_id
+        })))
+      }
     });
 
-    return NextResponse.json({ success: true, subscription: result });
+    return NextResponse.json({
+      success: true,
+      checkoutRequired: true,
+      url: checkoutSession.url
+    });
   } catch (error) {
-    console.error("Subscription creation error:", error);
-    return NextResponse.json({ 
-      success: false, 
-      error: "Failed to create subscription"
-    }, { status: 500 });
+    console.error("❌ Subscription error:", error);
+    return NextResponse.json({ error: "Subscription process failed" }, { status: 500 });
   }
 }

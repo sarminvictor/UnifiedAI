@@ -1,5 +1,7 @@
 'use client';
 
+import { SubscriptionErrorCode } from '@/services/subscriptions/types';
+
 export class AppError extends Error {
   public statusCode: number;
   public code: string;
@@ -56,3 +58,20 @@ export class ErrorHandler {
     throw new AppError(message, statusCode, code);
   }
 }
+
+export function handleSubscriptionError(
+  error: unknown,
+  errorCode: SubscriptionErrorCode,
+  context?: Record<string, any>
+) {
+  return handleError({
+    error,
+    errorCode,
+    context,
+    module: 'subscription'
+  });
+}
+function handleError(arg0: { error: unknown; errorCode: SubscriptionErrorCode; context: Record<string, any> | undefined; module: string; }) {
+  throw new Error('Function not implemented.');
+}
+

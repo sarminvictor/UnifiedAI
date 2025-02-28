@@ -3,7 +3,7 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import { getServerSession } from "@/lib/auth";
 
 const prisma = new PrismaClient();
-import stripe from "@/utils/stripe";
+import stripe from "@/utils/subscriptions/stripe";
 import { sendSubscriptionUpdate } from "@/utils/sse";
 import { Subscription, Plan } from '@prisma/client';
 

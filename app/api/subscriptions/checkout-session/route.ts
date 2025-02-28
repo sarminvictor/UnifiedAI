@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";
 import { getServerSession } from "@/lib/auth";
-import stripe, { getStripePriceId, FALLBACK_PRICE_ID_FOR_TESTING } from "@/utils/stripe";
+import stripe, { getStripePriceId, FALLBACK_PRICE_ID_FOR_TESTING } from "@/utils/subscriptions/stripe";
 import { ensureUserExists } from "@/utils/userHelpers";
 
 export async function POST(request: NextRequest) {

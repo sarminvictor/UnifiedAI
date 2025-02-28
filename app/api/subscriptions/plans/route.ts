@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";  // Use your existing prisma client
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { getStripePriceId, PLAN_TO_STRIPE_PRODUCT } from "@/utils/stripe";
+import { getStripePriceId, PLAN_TO_STRIPE_PRODUCT } from "@/utils/subscriptions/stripe";
 
 // Type guard to check if a string is a valid plan name
 function isValidPlanName(name: string): name is keyof typeof PLAN_TO_STRIPE_PRODUCT {

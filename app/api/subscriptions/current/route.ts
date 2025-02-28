@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";
 import { getServerSession } from "@/lib/auth";
-import stripe from "@/utils/stripe";
+import stripe from "@/utils/subscriptions/stripe";
 
 export async function GET(request: NextRequest) {
     try {

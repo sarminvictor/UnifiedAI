@@ -2,10 +2,10 @@ import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import prisma from '@/lib/prismaClient';
-import stripeClient from '@/utils/stripe';
-import { logWebhookEvent, logTransactionDetails } from '@/utils/webhookLogger';
+import stripeClient from '@/utils/subscriptions/stripe';
+import { logWebhookEvent, logTransactionDetails } from '@/utils/subscriptions/webhookLogger';
 import { sendSubscriptionUpdate } from "@/utils/sse";
-import { PLAN_TO_STRIPE_PRODUCT } from '@/utils/stripe';
+import { PLAN_TO_STRIPE_PRODUCT } from '@/utils/subscriptions/stripe';
 
 // Ensure Stripe is initialized
 if (!stripeClient) {

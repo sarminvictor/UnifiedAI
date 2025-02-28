@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSubscription } from "@/hooks/useSubscription";
+import { useSubscription } from "@/hooks/subscriptions/index";
 import { PlanGrid } from "@/components/subscriptions/PlanGrid";
 import { SubscriptionBanner } from "@/components/subscriptions/SubscriptionBanner";
 import { SubscriptionModals } from "@/components/subscriptions/SubscriptionModals";
@@ -36,11 +36,16 @@ export default function SubscriptionPage() {
       return;
     }
 
-    // Continue with normal flow
-    const result = await subscribeToPlan(planId);
-    if (!result) {
-      setSelectedPlanId(planId);
-      setIsCancelModalOpen(true);
+    // Add immediate UI feedback for Free plan
+    if (plans.find(p => p.plan_id === planId)?.plan_name.toLowerCase() === 'free') {
+      // This logic should be moved to the hook
+      await subscribeToPlan(planId);
+    } else {
+      const result = await subscribeToPlan(planId);
+      if (!result) {
+        setSelectedPlanId(planId);
+        setIsCancelModalOpen(true);
+      }
     }
   };
 

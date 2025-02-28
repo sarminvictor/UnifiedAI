@@ -18,6 +18,43 @@ const nextConfig = {
     optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai']
   },
   poweredByHeader: false,
+
+  async rewrites() {
+    return [
+      {
+        source: '/api/webhook',
+        destination: '/api/webhook',
+      },
+    ];
+  },
+
+  async headers() {
+    return [
+      {
+        source: '/api/webhook',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'POST,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Stripe-Signature' },
+        ],
+      },
+    ];
+  },
+
+  async redirects() {
+    return [
+      {
+        source: '/payment-success',
+        destination: '/subscriptions/payment-success',
+        permanent: true,
+      },
+      {
+        source: '/payment-failed',
+        destination: '/subscriptions/payment-failed',
+        permanent: true,
+      }
+    ];
+  },
 }
 
 module.exports = nextConfig;

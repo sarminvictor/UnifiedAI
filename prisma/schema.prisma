@@ -1,32 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id                  String              @id @default(uuid()) @map("id") // Ensure id is a string
+  id                  String              @id @default(uuid()) @map("id")
   email               String              @unique
   password            String?
-  credits_remaining   String              @default("0") // Changed from Decimal
+  credits_remaining   String              @default("0")
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
-  name                String? // Optional field for user's name
-  resetToken          String? // Add this field
-  subscriptions       Subscription[]
-  chats               Chat[]
+  name                String?
+  resetToken          String?
   api_usage_logs      APIUsageLog[]
+  chats               Chat[]
   credit_transactions CreditTransaction[]
+  subscriptions       Subscription[]
 }
 
 model Plan {
   plan_id           String         @id @default(uuid())
   plan_name         String         @unique
-  credits_per_month String         // Changed from Int
-  price             String         // Changed from Float
+  credits_per_month String
+  price             String
   subscriptions     Subscription[]
 }
 
@@ -36,81 +36,83 @@ model Subscription {
   plan_id             String
   start_date          DateTime            @default(now())
   end_date            DateTime
-  status              String // Active, Canceled, Expired, Pending
-  payment_status      String // Paid, Failed, Refunded
+  status              String
+  payment_status      String
   discount_applied    Boolean             @default(false)
   stripe_payment_id   String
-  user                User                @relation(fields: [user_id], references: [id])
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  credit_transactions CreditTransaction[]
   plan                Plan                @relation(fields: [plan_id], references: [plan_id])
-  credit_transactions CreditTransaction[] // Add this relation
+  user                User                @relation(fields: [user_id], references: [id])
 }
 
 model API {
   api_id            String        @id @default(uuid())
   api_name          String        @unique
-  pricing_per_token String        // Changed from Float
+  pricing_per_token String
   input_output_type String
   status            String        @default("Active")
-  llm_model         String // Specific model like "GPT-4o", "Claude 3.5 Sonnet", "Gemini"
-  api_usage_logs    APIUsageLog[] @relation("UsageLogAPI") // 
+  llm_model         String
+  api_usage_logs    APIUsageLog[] @relation("UsageLogAPI")
 }
 
 model Chat {
-  chat_id        String        @id @default(uuid())  // Changed from numeric to UUID
+  chat_id        String        @id @default(uuid())
   user_id        String
   chat_title     String
   created_at     DateTime      @default(now())
   updated_at     DateTime      @updatedAt
-  deleted        Boolean       @default(false) // New field to mark chat as deleted
-  chat_summary   String? // Store summarized chat context
-  user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade) // Add onDelete: Cascade
+  deleted        Boolean       @default(false)
+  chat_summary   String?
+  api_usage_logs APIUsageLog[]
+  user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   chat_history   ChatHistory[]
-  api_usage_logs APIUsageLog[] // Relation to APIUsageLog
 }
 
 model ChatHistory {
-  history_id       String    @id @default(uuid())
-  chat_id          String    // This will automatically adapt to the parent's type
+  history_id       String   @id @default(uuid())
+  chat_id          String
   user_input       String?
   api_response     String?
   input_type       String?
   output_type      String?
-  timestamp        DateTime  @default(now())
+  timestamp        DateTime @default(now())
   context_id       String
-  model            String?   // Add this field
-  credits_deducted String    // Changed from Decimal
-  chat             Chat      @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
+  model            String?
+  credits_deducted String
+  chat             Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
 }
 
 model APIUsageLog {
   log_id            String   @id @default(uuid())
   user_id           String
-  chat_id           String   // This will automatically adapt to the parent's type
+  chat_id           String
   api_id            String
-  tokens_used       String   // Changed to String
-  prompt_tokens     String   // Changed to String
-  completion_tokens String   // Changed to String
-  credits_deducted  String   // Already String
-  api_cost          String   // Changed to String
+  tokens_used       String
+  prompt_tokens     String
+  completion_tokens String
+  credits_deducted  String
+  api_cost          String
   usage_type        String
   input_type        String
   output_type       String
   timestamp         DateTime @default(now())
   messages_used     Json?
-  user              User     @relation(fields: [user_id], references: [id])
-  chat              Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
   apis              API      @relation("UsageLogAPI", fields: [api_id], references: [api_id], onDelete: Cascade)
+  chat              Chat     @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade)
+  user              User     @relation(fields: [user_id], references: [id])
 }
 
 model CreditTransaction {
   transaction_id   String       @id @default(uuid())
   user_id          String
   subscription_id  String
-  credits_added    String       // Changed from Int
-  credits_deducted String       // Changed from Int
+  credits_added    String
+  credits_deducted String
   payment_method   String       @default("Stripe")
   description      String
   timestamp        DateTime     @default(now())
-  user             User         @relation(fields: [user_id], references: [id])
   subscription     Subscription @relation(fields: [subscription_id], references: [subscription_id])
+  user             User         @relation(fields: [user_id], references: [id])
 }

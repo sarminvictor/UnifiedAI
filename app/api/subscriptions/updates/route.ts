@@ -1,55 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from '@/lib/auth';
 import prisma from '@/lib/prismaClient';
+import { addConnection, removeConnection } from '@/utils/sse';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-
-  if (!userId) {
-    return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendUpdate = async () => {
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          include: {
-            subscriptions: {
-              where: { status: 'Active' },
-              orderBy: { start_date: 'desc' },
-              take: 1,
-              include: {
-                plan: true
-              }
-            }
-          }
-        });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
 
-        const currentPlanId = user?.subscriptions[0]?.plan_id || null;
-
-        controller.enqueue(`data: ${JSON.stringify({ currentPlan: currentPlanId })}\n\n`);
-      };
-
-      // Send an initial update
-      await sendUpdate();
-
-      // Set up a timer to send updates every 10 seconds
-      const interval = setInterval(sendUpdate, 10000);
-
-      // Clean up the interval when the connection is closed
-      request.signal.addEventListener('abort', () => {
-        clearInterval(interval);
-        controller.close();
-      });
+    if (!user) {
+      return new NextResponse('User not found', { status: 404 });
     }
-  });
 
-  return new NextResponse(stream, {
-    headers: {
+    const headers = new Headers({
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-    }
-  });
+      'Cache-Control': 'no-cache',
+      'Keep-Alive': 'timeout=120, max=1000'
+    });
+
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+    const encoder = new TextEncoder();
+
+    // Send initial heartbeat
+    writer.write(encoder.encode(': heartbeat\n\n'));
+
+    // Setup periodic heartbeat
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        await writer.write(encoder.encode(': heartbeat\n\n'));
+      } catch (error) {
+        console.error('Heartbeat failed:', error);
+        clearInterval(heartbeatInterval);
+      }
+    }, 30000); // Every 30 seconds
+
+    // Handle connection cleanup
+    request.signal.addEventListener('abort', () => {
+      clearInterval(heartbeatInterval);
+      removeConnection(user.id);
+      writer.close();
+      console.log(`🔄 Clean disconnect for user: ${user.id}`);
+    });
+
+    // Add connection to the map
+    addConnection(user.id, writer);
+
+    // Send initial state
+    const currentSubscription = await prisma.subscription.findFirst({
+      where: {
+        user_id: user.id,
+        OR: [{ status: "Active" }, { status: "Pending Downgrade" }]
+      },
+      include: { plan: true },
+      orderBy: { created_at: 'desc' }
+    });
+
+    const initialState = {
+      type: 'subscription_updated',
+      details: {
+        planName: currentSubscription?.plan.plan_name || 'Free',
+        planId: currentSubscription?.plan_id,
+        isDowngradePending: currentSubscription?.status === 'Pending Downgrade',
+        renewalDate: currentSubscription?.end_date,
+        creditsRemaining: user.credits_remaining
+      }
+    };
+
+    writer.write(encoder.encode(`data: ${JSON.stringify(initialState)}\n\n`));
+
+    return new Response(stream.readable, { headers });
+  } catch (error) {
+    console.error('SSE Setup Error:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
 }

@@ -1,48 +1,60 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function clearDatabase() {
+async function clearDB() {
+  console.log('🧹 Starting database cleanup...');
   try {
-    console.log('🗑️ Clearing database...');
+    // Tables in order of dependencies matching Prisma schema
+    const deleteOrder = [
+      // Level 1 - Most dependent tables (transactions, logs, history)
+      { name: 'creditTransaction', label: 'CreditTransaction' },
+      { name: 'aPIUsageLog', label: 'APIUsageLog' },
+      { name: 'chatHistory', label: 'ChatHistory' },
 
-    // Delete records with foreign key relationships first
-    await prisma.creditTransaction.deleteMany();
-    console.log('✅ Cleared credit transactions');
+      // Level 2 - Intermediate dependencies
+      { name: 'subscription', label: 'Subscription' },
+      { name: 'chat', label: 'Chat' },
 
-    await prisma.chatHistory.deleteMany();
-    console.log('✅ Cleared chat history');
+      // Level 3 - Base tables
+      { name: 'user', label: 'User' },
+      { name: 'plan', label: 'Plan' },
+      { name: 'aPI', label: 'API' }
+    ];
 
-    await prisma.aPIUsageLog.deleteMany(); // Note the capital 'API' in the model name
-    console.log('✅ Cleared API usage logs');
+    // Process each table
+    for (const table of deleteOrder) {
+      try {
+        console.log(`🗑️ Clearing ${table.label}...`);
+        // @ts-ignore - Dynamic table access
+        await prisma[table.name].deleteMany();
+        console.log(`✅ Cleared ${table.label}`);
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+          if (error.code === 'P2021') {
+            console.log(`⚠️ Table ${table.label} not found, skipping...`);
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
 
-    await prisma.chat.deleteMany();
-    console.log('✅ Cleared chats');
-
-    await prisma.subscription.deleteMany();
-    console.log('✅ Cleared subscriptions');
-
-    // Delete records that are referenced by others
-    await prisma.user.deleteMany();
-    console.log('✅ Cleared users');
-
-    await prisma.plan.deleteMany();
-    console.log('✅ Cleared plans');
-
-    await prisma.aPI.deleteMany(); // Note the capital 'API' in the model name
-    console.log('✅ Cleared APIs');
-
-    console.log('🎉 Database cleared successfully!');
+    console.log('✅ All tables cleared successfully');
   } catch (error) {
-    console.error('Error clearing database:', error);
+    console.error('❌ Database clear failed:', error);
     throw error;
   } finally {
     await prisma.$disconnect();
   }
 }
 
-clearDatabase()
+clearDB()
   .catch((error) => {
-    console.error(error);
+    console.error('Failed to clear database:', error);
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
   });

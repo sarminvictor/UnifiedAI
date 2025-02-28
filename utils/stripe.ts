@@ -12,10 +12,13 @@ export const PLAN_TO_STRIPE_PRODUCT = {
     'Free': 'free_tier',
     'Starter': 'prod_RqUmGdLyUsGuxM',
     'Pro': 'prod_RqUmW0lFzzSzmW'
-};
+} as const;
+
+// Fallback price ID for testing purposes
+export const FALLBACK_PRICE_ID_FOR_TESTING = 'price_test_123';
 
 // Fetch Stripe price for a plan
-export async function getStripePriceId(planName: string): Promise<string | null> {
+export async function getStripePriceId(planName: keyof typeof PLAN_TO_STRIPE_PRODUCT): Promise<string | null> {
     // Handle client-side gracefully
     if (typeof window !== 'undefined') {
         console.log('Stripe price fetching should only be done server-side');

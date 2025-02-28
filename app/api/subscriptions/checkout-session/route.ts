@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure the user exists in the database
-    const user = await ensureUserExists(userId, email, name);
+    const user = await ensureUserExists(userId, email);
 
     if (!user) {
       return NextResponse.json({ error: "Failed to create or retrieve user" }, { status: 500 });
@@ -74,6 +74,11 @@ async function createCheckoutSession(planId: string, userId: string, email: stri
   }
 
   console.log(`Using price ID: ${priceId} for plan: ${plan.plan_name}`);
+
+  // Ensure stripe is initialized
+  if (!stripe) {
+    throw new Error('Stripe client is not initialized');
+  }
 
   // Create a new Stripe Checkout session
   const checkoutSession = await stripe.checkout.sessions.create({

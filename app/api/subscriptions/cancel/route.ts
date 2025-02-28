@@ -11,6 +11,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // Check if Stripe is initialized
+        if (!stripe) {
+            throw new Error('Stripe is not initialized');
+        }
+
         // Find user and their active subscriptions
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
@@ -31,11 +36,11 @@ export async function POST(request: NextRequest) {
         // Process in transaction to ensure data consistency
         await prisma.$transaction(async (tx) => {
             // Cancel all active Stripe subscriptions
-            for (const subscription of user.subscriptions) {
-                if (subscription.stripe_payment_id && subscription.stripe_payment_id !== "free_tier") {
+            for (const sub of user.subscriptions) {
+                if (sub.stripe_payment_id && sub.stripe_payment_id !== "free_tier") {
                     try {
-                        await stripe.subscriptions.cancel(subscription.stripe_payment_id);
-                        console.log('✅ Canceled Stripe subscription:', subscription.stripe_payment_id);
+                        await stripe!.subscriptions.cancel(sub.stripe_payment_id);
+                        console.log('✅ Canceled Stripe subscription:', sub.stripe_payment_id);
                     } catch (error) {
                         console.error('❌ Failed to cancel Stripe subscription:', error);
                     }
@@ -45,8 +50,8 @@ export async function POST(request: NextRequest) {
                 await tx.creditTransaction.create({
                     data: {
                         user_id: user.id,
-                        subscription_id: subscription.subscription_id,
-                        credits_deducted: subscription.plan.credits_per_month,
+                        subscription_id: sub.subscription_id,
+                        credits_deducted: sub.plan.credits_per_month,
                         credits_added: "0",
                         payment_method: "System",
                         description: "Credits removed due to subscription cancellation"

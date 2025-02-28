@@ -2,10 +2,23 @@ import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import prisma from '@/lib/prismaClient';
-import stripe from '@/utils/stripe';
+import stripeClient from '@/utils/stripe';
 import { logWebhookEvent, logTransactionDetails } from '@/utils/webhookLogger';
 import { sendSubscriptionUpdate } from "@/utils/sse";
 import { PLAN_TO_STRIPE_PRODUCT } from '@/utils/stripe';
+
+// Ensure Stripe is initialized
+if (!stripeClient) {
+    throw new Error('Stripe client is not initialized');
+}
+
+const stripe = stripeClient;
+
+// Type for active subscription IDs
+type ActiveSubscriptionId = {
+    id: string;
+    stripeId: string;
+};
 
 // Event deduplication tracking
 const processedEvents = new Set<string>();
@@ -20,11 +33,16 @@ export async function POST(request: NextRequest) {
         const body = await request.text();
         const sig = headers().get('stripe-signature');
 
-        if (!sig) {
-            return NextResponse.json({ error: 'No signature' }, { status: 400 });
+        if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+            return NextResponse.json({ error: 'Invalid signature or webhook secret' }, { status: 400 });
         }
 
-        const event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        const event = stripe.webhooks.constructEvent(
+            body,
+            sig,
+            process.env.STRIPE_WEBHOOK_SECRET
+        );
+
         const eventId = `${event.type}-${event.id}`; // Unique event identifier
 
         // Check if event was already processed
@@ -78,11 +96,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     try {
         const stripeSubscription = await stripe.subscriptions.retrieve(session.subscription as string);
-        const stripeProductId = stripeSubscription.items.data[0].price.product;
+        const stripeProductId = stripeSubscription.items.data[0].price.product as string;
 
-        const planName = Object.keys(PLAN_TO_STRIPE_PRODUCT).find(
-            key => PLAN_TO_STRIPE_PRODUCT[key] === stripeProductId
-        );
+        // Type-safe plan name lookup
+        const planName = Object.entries(PLAN_TO_STRIPE_PRODUCT).find(
+            ([_, productId]) => productId === stripeProductId
+        )?.[0];
 
         if (!planName) {
             console.error(`❌ Unrecognized product ID from Stripe: ${stripeProductId}`);
@@ -117,7 +136,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             const creditsToDeduct = currentActiveSub?.plan.credits_per_month || '0';
 
             // ✅ Cancel old subscriptions AFTER successful new subscription creation
-            for (const sub of activeSubscriptionIds) {
+            for (const sub of activeSubscriptionIds as ActiveSubscriptionId[]) {
                 if (sub.stripeId && sub.stripeId !== 'free_tier') {
                     try {
                         await stripe.subscriptions.cancel(sub.stripeId);
@@ -132,7 +151,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             await tx.subscription.updateMany({
                 where: {
                     subscription_id: {
-                        in: activeSubscriptionIds.map(sub => sub.id)
+                        in: activeSubscriptionIds.map((sub: { id: any; }) => sub.id)
                     }
                 },
                 data: {
@@ -208,8 +227,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
         const dbSub = await prisma.subscription.findFirst({
             where: { stripe_payment_id: subscription.id }
         });
-        userId = dbSub?.user_id;
-        if (!userId) return NextResponse.json({ received: true });
+        if (!dbSub?.user_id) return NextResponse.json({ received: true });
+        userId = dbSub.user_id;
     }
 
     const endDate = new Date(subscription.current_period_end * 1000);

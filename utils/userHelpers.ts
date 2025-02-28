@@ -32,8 +32,6 @@ export async function ensureUserExists(
                 email: email,
                 name: name || 'User',
                 credits_remaining: '0',
-                credits_used: '0',
-                last_login: new Date(),
             }
         });
 

@@ -1,5 +1,5 @@
 import prisma from '@/lib/prismaClient';
-import { ChatMessage } from '@/types/ai.types';
+import { ChatMessage, ModelName } from '@/types/ai.types';
 
 export class ChatService {
   static async findChat(chatId: string) {
@@ -27,7 +27,7 @@ export class ChatService {
     });
   }
 
-  static async createAIMessage(chatId: string, aiResponse: string, model: string, creditsDeducted: string) {
+  static async createAIMessage(chatId: string, aiResponse: string, model: ModelName, creditsDeducted: string) {
     return prisma.chatHistory.create({
       data: {
         chat_id: chatId,

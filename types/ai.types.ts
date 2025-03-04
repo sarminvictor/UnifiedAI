@@ -39,8 +39,22 @@ export interface SummaryConfig {
 }
 
 export enum ModelName {
-  ChatGPT = 'ChatGPT',
-  Claude = 'Claude',
-  Gemini = 'Gemini',
-  DeepSeek = 'DeepSeek'
+  ChatGPT = 'gpt-3.5-turbo',
+  Claude = 'claude-3-haiku-20240307',
+  Gemini = 'gemini-1.5-pro',
+  DeepSeek = 'deepseek-chat'
+}
+
+export enum AIProvider {
+  OPENAI = 'openai',
+  GEMINI = 'gemini',
+  ANTHROPIC = 'anthropic',
+  DEEPSEEK = 'deepseek'
+}
+
+export interface AIModel {
+  provider: AIProvider;
+  name: string;
+  maxTokens: number;
+  costPer1kTokens: number;
 }

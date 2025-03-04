@@ -10,6 +10,7 @@ import {
 import { sendSubscriptionUpdate } from "@/utils/sse";
 import { logSubscriptionError, logWebhookEvent } from '@/utils/subscriptions/webhookLogger';
 import { SubscriptionCheckoutData } from '@/services/subscriptions/types';
+import { Decimal } from '@prisma/client/runtime/library';
 
 export async function handleSubscriptionProcess(data: SubscriptionCheckoutData) {
     const { userId, stripeSubscription, stripeCustomer, productDetails, activeSubscriptionIds } = data;
@@ -23,7 +24,10 @@ export async function handleSubscriptionProcess(data: SubscriptionCheckoutData) 
             select: { credits_remaining: true }
         });
 
-        const creditsToDeduct = user?.credits_remaining || '0';
+        // Convert credits_remaining to Decimal for accurate calculations
+        const currentCredits = new Decimal(user?.credits_remaining || '0');
+        const creditsToDeduct = currentCredits.toString();
+        const newCredits = new Decimal(plan.credits_per_month);
 
         const stripeInfo = [
             stripeSubscription.status.toUpperCase(),
@@ -70,17 +74,17 @@ export async function handleSubscriptionProcess(data: SubscriptionCheckoutData) 
                     user_id: userId,
                     subscription_id: newSub.subscription_id,
                     credits_deducted: creditsToDeduct,
-                    credits_added: plan.credits_per_month,
+                    credits_added: newCredits.toString(),
                     payment_method: "Stripe",
                     description: `Plan change: remaining credits ${creditsToDeduct} to new plan ${plan.plan_name}`
                 }
             });
 
-            // Update user credits
+            // Update user credits with new plan amount
             await tx.user.update({
                 where: { id: userId },
                 data: {
-                    credits_remaining: plan.credits_per_month
+                    credits_remaining: newCredits.toString()
                 }
             });
 
@@ -92,7 +96,7 @@ export async function handleSubscriptionProcess(data: SubscriptionCheckoutData) 
             type: "subscription_updated",
             details: {
                 planName: plan.plan_name,
-                creditsRemaining: plan.credits_per_month,
+                creditsRemaining: newCredits.toString(),
                 renewalDate: new Date(stripeSubscription.current_period_end * 1000).toISOString()
             }
         });

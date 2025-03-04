@@ -14,6 +14,7 @@ import { useVisibilityEffect } from '@/hooks/chat/useVisibilityEffect';
 import { mutate } from 'swr';
 import { useChats } from '@/hooks/chat/useChats';
 import { logger } from '@/utils/logger';
+import { ModelName } from '@/types/ai.types';
 
 interface MainContentProps {
   chatId: string;
@@ -24,56 +25,56 @@ export const MainContent = ({ chatId }: MainContentProps) => {
   const { error, mutate: refreshChats } = useChats();
   const actions = useChatActions();
   const router = useRouter();
-  
+
   // Only track pending validations, don't track shown errors
   const pendingValidation = useRef<boolean>(false);
   const pendingChatIds = useRef<Set<string>>(new Set());
-  
+
   // Handle URL chat ID validation, always showing errors
   useEffect(() => {
     const urlChatId = window?.location?.pathname?.split('/c/')?.[1];
-    
+
     // Skip if no chat ID in URL or already matched current chat
     if (!urlChatId || currentChatId === urlChatId) return;
-    
+
     // Check if chat exists in loaded chats
     const chatInState = chats.find(c => c.chat_id === urlChatId);
-    
+
     if (chatInState) {
       // Chat exists in state, just set it as current
       dispatch({ type: 'SET_CURRENT_CHAT', payload: urlChatId });
-      dispatch({ type: 'SET_MODEL', payload: chatInState.model || 'ChatGPT' });
-    } 
+      dispatch({ type: 'SET_MODEL', payload: chatInState.model || ModelName.ChatGPT });
+    }
     // Only validate if not already validating for this chat ID
     else if (!pendingChatIds.current.has(urlChatId)) {
       pendingChatIds.current.add(urlChatId);
-      
+
       const validateChat = async () => {
         try {
           const response = await fetch(`/api/chat/validateChat?chatId=${urlChatId}`);
           const data = await response.json();
-          
+
           if (!response.ok || !data.success) {
             // Always show error toasts
             let errorTitle = 'Unable to load conversation';
             let errorDesc = 'The requested conversation could not be found.';
-            
+
             if (data.reason === 'DELETED') {
               errorDesc = 'This conversation has been deleted.';
             } else if (data.reason === 'UNAUTHORIZED') {
               errorDesc = 'You do not have permission to view this conversation.';
             }
-            
+
             // Clear existing toasts before showing new one
             toast.dismiss();
-            
+
             // Use timestamp to ensure uniqueness
             toast.error(errorTitle, {
               description: errorDesc,
               duration: 5000,
-              id: `chat-error-${urlChatId}-${Date.now()}` 
+              id: `chat-error-${urlChatId}-${Date.now()}`
             });
-            
+
             // Redirect to home
             router.push('/');
           } else {
@@ -82,13 +83,13 @@ export const MainContent = ({ chatId }: MainContentProps) => {
           }
         } catch (error) {
           toast.dismiss();
-          
+
           toast.error('Error loading conversation', {
             description: 'Please try again or start a new chat.',
             duration: 5000,
             id: `chat-error-generic-${Date.now()}`
           });
-          
+
           router.push('/');
         } finally {
           // Remove from pending after a short delay
@@ -97,7 +98,7 @@ export const MainContent = ({ chatId }: MainContentProps) => {
           }, 1000);
         }
       };
-      
+
       validateChat();
     }
   }, [chats, currentChatId, dispatch, router, refreshChats]);
@@ -109,7 +110,7 @@ export const MainContent = ({ chatId }: MainContentProps) => {
     };
   }, []);
 
-  const currentChat = React.useMemo(() => 
+  const currentChat = React.useMemo(() =>
     chats.find((chat) => chat.chat_id === currentChatId),
     [chats, currentChatId]
   );
@@ -140,13 +141,13 @@ export const MainContent = ({ chatId }: MainContentProps) => {
 
   const processMessages = React.useCallback((chat: any) => {
     if (!chat) return [];
-    
+
     const messages = chat.chat_history || [];
     logger.debug('Processing messages:', {
       chatId: chat.chat_id,
       messageCount: messages.length
     });
-    
+
     return messages
       .filter((msg: { user_input: any; api_response: any; }) => !!msg?.user_input || !!msg?.api_response)
       .map((msg: { user_input: any; api_response: any; timestamp: any; model: any; credits_deducted: any; }) => ({
@@ -161,7 +162,7 @@ export const MainContent = ({ chatId }: MainContentProps) => {
   return (
     <div className="flex h-screen">
       <Sidebar
-        chatSessions={chats.map(chat => ({...chat, model: chat.model || 'ChatGPT'}))}
+        chatSessions={chats.map(chat => ({ ...chat, model: chat.model || ModelName.ChatGPT }))}
         currentChatId={currentChatId}
         setCurrentChatId={actions.handleSelectChat}
         handleStartNewChat={actions.handleStartNewChat}
@@ -173,15 +174,15 @@ export const MainContent = ({ chatId }: MainContentProps) => {
         refreshChats={refreshChats}
       />
       <div className="w-3/4 flex flex-col">
-        <ChatHeader 
-          selectedModel={selectedModel} 
+        <ChatHeader
+          selectedModel={selectedModel}
           setSelectedModel={(model) => dispatch({ type: 'SET_MODEL', payload: model })}
         />
-        <ChatContainer 
+        <ChatContainer
           chatMessages={processMessages(currentChat)}
-          isLoading={isLoading} 
+          isLoading={isLoading}
         />
-        <ChatInput 
+        <ChatInput
           onSendMessage={actions.handleSendMessage}
           isLoading={isLoading}
           hasCredits={!!credits}

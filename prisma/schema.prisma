@@ -20,6 +20,7 @@ model User {
   chats               Chat[]
   credit_transactions CreditTransaction[]
   subscriptions       Subscription[]
+  settings            UserSettings?
 }
 
 model Plan {
@@ -115,4 +116,16 @@ model CreditTransaction {
   timestamp        DateTime     @default(now())
   subscription     Subscription @relation(fields: [subscription_id], references: [subscription_id])
   user             User         @relation(fields: [user_id], references: [id])
+}
+
+model UserSettings {
+    id          String   @id @default(cuid())
+    user_id     String   @unique
+    user        User     @relation(fields: [user_id], references: [id])
+    ai_provider String   @default("openai")
+    ai_model    String   @default("gpt-3.5-turbo")
+    created_at  DateTime @default(now())
+    updated_at  DateTime @updatedAt
+
+    @@map("user_settings")
 }

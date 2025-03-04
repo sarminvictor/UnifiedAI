@@ -5,11 +5,12 @@ import { authOptions } from "../auth.config"
 import prisma from "../prismaClient"
 import { revalidatePath } from "next/cache"
 import { serverLogger } from "@/utils/serverLogger"
+import { ModelName } from '@/types/ai.types'
 
 export async function saveMessage(chatId: string, message: {
     userInput: string
     timestamp: string
-    model: string
+    model: ModelName
 }) {
     try {
         const session = await getServerSession(authOptions)

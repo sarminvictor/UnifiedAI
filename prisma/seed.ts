@@ -45,43 +45,43 @@ async function main() {
   const apis = [
     {
       api_id: '2d41b025-6e23-4b71-b31c-74c5cc412a94',
-      api_name: 'ChatGPT',
-      pricing_per_token: '0.000002',
-      input_output_type: 'text',
-      status: 'Active',
-      llm_model: 'gpt-4o'
-    },
-    {
-      api_id: '940f32b9-748b-490e-896b-519f45571faa',
-      api_name: 'ChatGPT',
-      pricing_per_token: '0.000002',
+      api_name: 'gpt-3.5-turbo',
+      pricing_per_token: '0.0015',
       input_output_type: 'text',
       status: 'Active',
       llm_model: 'gpt-3.5-turbo'
     },
     {
-      api_id: '4a15e837-4e85-4e91-9c64-3c17f21d8635',
-      api_name: 'Claude 3 Sonnet',
-      pricing_per_token: '0.001125',
+      api_id: '940f32b9-748b-490e-896b-519f45571faa',
+      api_name: 'gpt-4',
+      pricing_per_token: '0.06',
       input_output_type: 'text',
       status: 'Active',
-      llm_model: 'Claude'  // Changed to match the model name used in the app
+      llm_model: 'gpt-4'
+    },
+    {
+      api_id: '4a15e837-4e85-4e91-9c64-3c17f21d8635',
+      api_name: 'claude-3-haiku',
+      pricing_per_token: '0.015',
+      input_output_type: 'text',
+      status: 'Active',
+      llm_model: 'claude-3-haiku-20240307'
     },
     {
       api_id: '7d9274a2-8820-4752-9fdd-38e1e7f27d8e',
-      api_name: 'Gemini Pro',
-      pricing_per_token: '0.000023',
+      api_name: 'gemini-1.5-pro',
+      pricing_per_token: '0.005',
       input_output_type: 'text',
       status: 'Active',
-      llm_model: 'Gemini'  // Changed to match the model name used in the app
+      llm_model: 'gemini-1.5-pro'
     },
     {
       api_id: 'c58c3963-d7e0-4d1e-9c4d-9e4f154a95a9',
-      api_name: 'DeepSeek',
-      pricing_per_token: '0.00004',
+      api_name: 'deepseek-chat',
+      pricing_per_token: '0.0015',
       input_output_type: 'text',
       status: 'Active',
-      llm_model: 'DeepSeek'  // Changed to match the model name used in the app
+      llm_model: 'deepseek-chat'
     }
   ];
 

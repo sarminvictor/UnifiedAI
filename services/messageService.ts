@@ -2,9 +2,10 @@ import { ChatMessage } from '@/types/store';
 import { logger } from '@/utils/logger';
 import { chatService } from './chatService';
 import { generateChatId } from '@/utils/chatUtils'; // Add this import
+import { ModelName } from '@/types/ai.types';
 
 export const messageService = {
-  async sendMessage(chatId: string, messageText: string, model: string) {
+  async sendMessage(chatId: string, messageText: string, model: ModelName) {
     try {
       const isTemp = chatId.startsWith('temp_');
       let actualChatId = chatId;

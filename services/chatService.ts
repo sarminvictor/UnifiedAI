@@ -1,5 +1,6 @@
 import { generateChatId } from '@/utils/chatUtils';
 import { logger } from '@/utils/logger';
+import { ModelName } from '@/types/ai.types';
 
 export const chatService = {
   async createChat(chatId: string, chatTitle: string = "New Chat") {
@@ -11,7 +12,7 @@ export const chatService = {
           chat_id: chatId,
           chat_title: chatTitle,
           chat_history: [],
-          model: 'ChatGPT',
+          model: ModelName.ChatGPT,
           updated_at: new Date().toISOString()
         }
       };

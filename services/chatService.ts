@@ -27,10 +27,10 @@ export const chatService = {
         // For temporary chats, we can just return success without API call
         return { success: true, data: { chatId } };
       }
-      
+
       const response = await fetch('/api/chat/deleteChat', { // Remove /route
         method: 'DELETE',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ chatId })
@@ -55,7 +55,7 @@ export const chatService = {
       if (!chatId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
         throw new Error('Invalid chat ID format');
       }
-      
+
       const response = await fetch(`/api/chat/getChat?chatId=${chatId}`);
       const data = await response.json();
 
@@ -81,12 +81,12 @@ export const chatService = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId, ...data }),
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Failed to update chat' }));
       throw new Error(errorData.message || 'Failed to update chat');
     }
-    
+
     return response.json();
   }
 };

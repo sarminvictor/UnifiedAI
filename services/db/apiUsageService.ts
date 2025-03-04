@@ -1,6 +1,7 @@
 import prisma from '@/lib/prismaClient';
 import { ModelName } from '@/types/ai.types';
 import { serverLogger } from '@/utils/serverLogger';
+import { TOKEN_RATES, MODEL_PROVIDER_MAP, CREDIT_COST_PER_TOKEN } from '@/utils/ai.constants';
 
 interface APIUsageLogParams {
   userId: string;
@@ -14,6 +15,19 @@ interface APIUsageLogParams {
 }
 
 export class APIUsageService {
+  private static calculateCreditsDeducted(modelName: ModelName, promptTokens: number, completionTokens: number): string {
+    const modelRates = CREDIT_COST_PER_TOKEN[modelName];
+    if (!modelRates) {
+      throw new Error(`No credit rates found for model ${modelName}`);
+    }
+
+    const inputCredits = promptTokens * modelRates.inputCredits;
+    const outputCredits = completionTokens * modelRates.outputCredits;
+    const totalCredits = inputCredits + outputCredits;
+
+    return totalCredits.toFixed(6);
+  }
+
   static async logAPIUsage({
     userId,
     chatId,
@@ -25,22 +39,53 @@ export class APIUsageService {
     messageIds
   }: APIUsageLogParams) {
     try {
-      // Get API details
-      const api = await prisma.aPI.findFirst({
+      // Get or create API entry
+      let api = await prisma.aPI.findFirst({
         where: {
           llm_model: modelName
         }
       });
 
       if (!api) {
-        serverLogger.error('API not found for model:', modelName);
-        throw new Error(`API configuration not found for model ${modelName}`);
+        // Get provider and pricing info
+        const provider = MODEL_PROVIDER_MAP[modelName];
+        const providerRates = TOKEN_RATES[provider];
+        const modelRates = providerRates?.[modelName];
+
+        if (!modelRates) {
+          throw new Error(`No pricing configuration found for model ${modelName}`);
+        }
+
+        // Create new API entry with combined rate for backwards compatibility
+        const combinedRate = ((modelRates.inputCostPer1kTokens + modelRates.outputCostPer1kTokens) / 2).toString();
+        api = await prisma.aPI.create({
+          data: {
+            api_name: `${provider} ${modelName}`,
+            pricing_per_token: combinedRate,
+            input_output_type: 'Text',
+            status: 'Active',
+            llm_model: modelName
+          }
+        });
+
+        serverLogger.info('Created new API entry:', { api });
       }
 
-      // Calculate API cost
-      const tokenCost = parseFloat(api.pricing_per_token);
-      const totalTokens = parseInt(tokensUsed);
-      const apiCost = (tokenCost * totalTokens).toString();
+      // Calculate API cost for our tracking (USD)
+      const provider = MODEL_PROVIDER_MAP[modelName];
+      const providerRates = TOKEN_RATES[provider];
+      const modelRates = providerRates?.[modelName];
+      const apiCost = modelRates ? (
+        (parseInt(promptTokens) * modelRates.inputCostPer1kTokens / 1000 +
+          parseInt(completionTokens) * modelRates.outputCostPer1kTokens / 1000)
+      ).toString() : '0';
+
+      // Calculate credits deducted using our internal credit rates
+      const calculatedCredits = this.calculateCreditsDeducted(
+        modelName,
+        parseInt(promptTokens),
+        parseInt(completionTokens)
+      );
 
       // Create API usage log
       const apiUsageLog = await prisma.aPIUsageLog.create({
@@ -51,7 +96,7 @@ export class APIUsageService {
           tokens_used: tokensUsed,
           prompt_tokens: promptTokens,
           completion_tokens: completionTokens,
-          credits_deducted: creditsDeducted,
+          credits_deducted: calculatedCredits,
           api_cost: apiCost,
           usage_type: 'Chat',
           input_type: 'Text',
@@ -64,7 +109,10 @@ export class APIUsageService {
         logId: apiUsageLog.log_id,
         model: modelName,
         tokensUsed,
-        creditsDeducted
+        promptTokens,
+        completionTokens,
+        creditsDeducted: calculatedCredits,
+        apiCost
       });
 
       return apiUsageLog;

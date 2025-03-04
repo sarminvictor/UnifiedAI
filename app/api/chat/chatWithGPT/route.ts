@@ -13,14 +13,14 @@ import { SummaryManager } from '@/services/ai/summaryManager';
 import { ChatService } from '@/services/db/chatService';
 import { UserService } from '@/services/db/userService';
 import { APIUsageService } from '@/services/db/apiUsageService';
-import { ModelName, ChatMessage } from '@/types/ai.types';
-import { SYSTEM_PROMPTS, TOKEN_RATES } from '@/utils/ai.constants';
+import { ModelName, ChatMessage, AIProvider } from '@/types/ai.types';
+import { SYSTEM_PROMPTS, TOKEN_RATES, MODEL_PROVIDER_MAP } from '@/utils/ai.constants';
 import { logger } from '@/utils/logger';
 import { serverLogger } from '@/utils/serverLogger';
 import { ServerModelFactory } from '@/services/ai/serverModelFactory';
 import { ServerError, ServerErrorCodes, handleServerError } from '@/utils/serverErrorHandler';
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { TokenCalculator } from '@/services/ai/tokenCalculator'; // Add this import
+import { TokenCalculator } from '@/services/ai/tokenCalculator';
 
 interface SummaryConfig {
   llm: BaseChatModel;
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const { chatId, message: userMessage, modelName } = payload;
 
     // Validate model name using type assertion
-    if (!modelName || !Object.values(ModelName).includes(modelName as ModelName)) {
+    if (!modelName || !Object.values(ModelName).includes(modelName)) {
       serverLogger.error('Invalid model name:', {
         modelName,
         validModels: Object.values(ModelName)
@@ -81,8 +81,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Now we can safely use the model name
+    // Now we can safely use the model name and get its provider
     const model = modelName as ModelName;
+    const provider = MODEL_PROVIDER_MAP[model];
+
+    if (!provider) {
+      serverLogger.error('No provider found for model:', { model });
+      return NextResponse.json(
+        { success: false, message: 'Invalid model configuration' },
+        { status: 400 }
+      );
+    }
 
     // Validate input
     if (!chatId || !userMessage || !modelName) {
@@ -125,15 +134,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize AI components with simplified chain creation
-    const llm = await ServerModelFactory.createModel(modelName);
+    // Create model instance with the correct provider
+    const llm = await AIModelFactory.createModel(provider, model);
 
     // Don't create user message here, it's already created by saveMessage
     const previousMessages = await ChatService.getPreviousMessages(chatId);
 
+    const systemPrompt = SYSTEM_PROMPTS[modelName as keyof typeof SYSTEM_PROMPTS] || SYSTEM_PROMPTS[ModelName.ChatGPT];
     const messages = [
       new SystemMessage(
-        `${SYSTEM_PROMPTS.DEFAULT_CHAT}
+        `${systemPrompt}
         ${chat.chat_summary ? `\nContext from previous conversation: ${chat.chat_summary}` : ''}`
       ),
       ...previousMessages.map(msg =>
@@ -159,7 +169,7 @@ export async function POST(request: NextRequest) {
       // Log the full response for debugging
       serverLogger.debug('AI Response details:', {
         responseKeys: Object.keys(response),
-        llmDetails: llm.modelName || llm._llm.model_name || llm._modelName,
+        model: model,
         response: response
       });
 
@@ -170,13 +180,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Get actual model used from the LLM instance
-      const actualModelUsed = llm.modelName || llm._llm.model_name || llm._modelName || modelName;
-      serverLogger.info('Model used for response:', { actualModelUsed });
+      // Use the validated model name we already have
+      serverLogger.info('Model used for response:', { model });
 
       // Calculate tokens and credits using TokenCalculator
       const tokenInfo = TokenCalculator.calculateMessageTokens(userMessage, response.text);
-      const creditsDeducted = TokenCalculator.calculateCredits(modelName, parseInt(tokenInfo.totalTokens));
+      const creditsDeducted = TokenCalculator.calculateCredits(
+        model,
+        parseInt(tokenInfo.promptTokens),
+        parseInt(tokenInfo.completionTokens)
+      );
       const newCredits = currentCredits.minus(new Decimal(creditsDeducted)).toString();
 
       // Get the last user message that was already saved
@@ -263,7 +276,7 @@ export async function POST(request: NextRequest) {
         aiMessage: messageAI,
         model: {
           requested: modelName,
-          actual: actualModelUsed
+          actual: model
         },
         tokensUsed: tokenInfo.totalTokens,
         creditsDeducted,

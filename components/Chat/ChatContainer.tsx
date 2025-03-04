@@ -12,7 +12,7 @@ export interface ChatMessageProps {
   timestamp: string;
   contextId: string;
   model?: string;
-  tokensUsed?: number;  // Changed from string to number
+  tokensUsed?: string;  // Changed back to string to match schema
   creditsDeducted?: string;
 }
 
@@ -31,7 +31,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatMessages, isLoading }
   }, [chatMessages]);
 
   // Filter and transform messages if needed
-  const validMessages = chatMessages?.filter(msg => 
+  const validMessages = chatMessages?.filter(msg =>
     msg && (msg.userInput || msg.apiResponse)
   ) || [];
 

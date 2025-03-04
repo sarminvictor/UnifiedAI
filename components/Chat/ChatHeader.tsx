@@ -2,28 +2,38 @@
 
 import React from "react";
 import { useChatStore } from '@/store/chat/chatStore';
+import { useAISettings } from '@/store/chat/aiSettings';
+import { AIProvider, AIModel, ModelName } from '@/types/ai.types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getModelsForProvider } from '@/lib/ai';
 
 interface ChatHeaderProps {
-  selectedModel: string;
-  setSelectedModel: (model: string) => void;
+  selectedModel: ModelName;
+  setSelectedModel: (model: ModelName) => void;
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({ selectedModel, setSelectedModel }) => {
+  const { provider, setProvider, model, setModel } = useAISettings();
+
   return (
-    <div className="flex items-center justify-between p-4 border-b">
-      <h2 className="text-xl font-bold">{selectedModel} Model</h2>
-      <div className="flex space-x-2">
-        {["ChatGPT", "Gemini", "Claude", "DeepSeek"].map((model) => (
-          <button
-            key={model}
-            className={`px-4 py-2 rounded transition ${
-              selectedModel === model ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"
-            }`}
-            onClick={() => setSelectedModel(model)}
-          >
-            {model}
-          </button>
-        ))}
+    <div className="bg-white border-b p-4 flex justify-between items-center">
+      <div className="flex items-center">
+        <select
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value as ModelName)}
+          className="border rounded p-2"
+        >
+          <option value={ModelName.ChatGPT}>GPT-3.5 Turbo</option>
+          <option value={ModelName.Claude}>Claude</option>
+          <option value={ModelName.Gemini}>Gemini</option>
+          <option value={ModelName.DeepSeek}>DeepSeek</option>
+        </select>
       </div>
     </div>
   );

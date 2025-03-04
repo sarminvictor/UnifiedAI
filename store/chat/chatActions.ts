@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateChatId } from '@/utils/chatUtils';
 import { toast } from 'sonner'; // Replace the old toast import with sonner
 import { useSWRConfig } from 'swr';
+import { ModelName } from '@/types/ai.types';
 
 export const useChatActions = () => {
   const dispatch = useChatStore(state => state.dispatch);
@@ -51,7 +52,7 @@ export const useChatActions = () => {
 
     if (emptyChat) {
       dispatch({ type: 'SET_CURRENT_CHAT', payload: emptyChat.chat_id });
-      dispatch({ type: 'SET_MODEL', payload: 'ChatGPT' });
+      dispatch({ type: 'SET_MODEL', payload: ModelName.ChatGPT });
       setTimeout(() => inputRef.current?.focus(), 0);
       return;
     }
@@ -61,7 +62,7 @@ export const useChatActions = () => {
       chat_id: `temp_${Date.now()}`, // Temporary ID for state management only
       chat_title: "New Chat",
       chat_history: [],
-      model: "ChatGPT",
+      model: ModelName.ChatGPT,
       updated_at: new Date().toISOString(),
       isTemp: true // Add flag to identify temporary chats
     };
@@ -69,7 +70,7 @@ export const useChatActions = () => {
     // Add to beginning of chat list
     dispatch({ type: 'SET_CHATS', payload: [tempChat, ...store.chats] });
     dispatch({ type: 'SET_CURRENT_CHAT', payload: tempChat.chat_id });
-    dispatch({ type: 'SET_MODEL', payload: 'ChatGPT' });
+    dispatch({ type: 'SET_MODEL', payload: ModelName.ChatGPT });
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -86,7 +87,7 @@ export const useChatActions = () => {
       dispatch({ type: 'SET_CURRENT_CHAT', payload: chatId });
       const selectedChat = store.chats.find(chat => chat.chat_id === chatId);
       if (selectedChat) {
-        dispatch({ type: 'SET_MODEL', payload: selectedChat.model || 'ChatGPT' });
+        dispatch({ type: 'SET_MODEL', payload: selectedChat.model || ModelName.ChatGPT });
       }
       setTimeout(() => inputRef.current?.focus(), 10);
     } catch (error) {

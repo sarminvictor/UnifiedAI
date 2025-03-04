@@ -2,11 +2,12 @@
 
 import { create } from 'zustand';
 import { ChatState, ChatAction } from './types';
+import { ModelName } from '@/types/ai.types';
 
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
   currentChatId: null,
-  selectedModel: 'ChatGPT',
+  selectedModel: ModelName.ChatGPT,
   isLoading: false,
   credits: null,
   dispatch: (action: ChatAction) => {
@@ -29,18 +30,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
         break;
       }
       case 'SET_CURRENT_CHAT': {
+        const chatId = action.payload;
         // Update URL when changing chats
-        if (action.payload && !action.payload.startsWith('temp_')) {
-          window?.history?.pushState({}, '', `/c/${action.payload}`);
+        if (chatId && !chatId.startsWith('temp_')) {
+          window?.history?.pushState({}, '', `/c/${chatId}`);
         } else {
           window?.history?.pushState({}, '', '/');
         }
-        set({ currentChatId: action.payload });
+
+        // Find the chat and set its model as selected if it exists
+        if (chatId) {
+          const chat = get().chats.find(c => c.chat_id === chatId);
+          if (chat?.model) {
+            set({ selectedModel: chat.model });
+          } else {
+            // If no model set for this chat, use ChatGPT as default
+            set({ selectedModel: ModelName.ChatGPT });
+          }
+        }
+
+        set({ currentChatId: chatId });
         break;
       }
-      case 'SET_MODEL':
+      case 'SET_MODEL': {
+        const currentChatId = get().currentChatId;
+        const chats = [...get().chats];
+
+        // Update the model for the current chat
+        if (currentChatId) {
+          const chatIndex = chats.findIndex(c => c.chat_id === currentChatId);
+          if (chatIndex !== -1) {
+            chats[chatIndex] = {
+              ...chats[chatIndex],
+              model: action.payload
+            };
+            set({ chats });
+          }
+        }
+
         set({ selectedModel: action.payload });
         break;
+      }
       case 'SET_LOADING':
         set({ isLoading: action.payload });
         break;
@@ -53,9 +83,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const chatIndex = chats.findIndex(c => c.chat_id === chatId);
 
         if (chatIndex !== -1) {
+          // Add the current model to the message
+          const messageWithModel = {
+            ...message,
+            model: message.model || get().selectedModel
+          };
+
           chats[chatIndex] = {
             ...chats[chatIndex],
-            chat_history: [...(chats[chatIndex].chat_history || []), message],
+            chat_history: [...(chats[chatIndex].chat_history || []), messageWithModel],
+            model: get().selectedModel, // Update chat's model
             updated_at: new Date().toISOString()
           };
           set({ chats });

@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation"; // Changed from next/router
 import ChatList from "./ChatList";
 import { useChatStore } from '@/store/chat/chatStore';
+import { ModelName } from '@/types/ai.types';
 
 
 interface ChatSession {
@@ -14,10 +15,10 @@ interface ChatSession {
     user_input?: string;
     api_response?: string;
     timestamp: string;
-    model?: string;
+    model?: ModelName;
     credits_deducted?: string;
   }>;
-  model: string;
+  model: ModelName;
   updated_at: string;
 }
 
@@ -29,7 +30,7 @@ interface SidebarProps {
   handleEditChat: (chatId: string, newName: string) => void;
   handleDeleteChat: (chatId: string) => void;
   credits: number | null;
-  setSelectedModel: (model: string) => void;
+  setSelectedModel: (model: ModelName) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   refreshChats: () => Promise<void>;
 }
@@ -75,7 +76,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     const selectedChat = chatSessions.find((chat) => chat.chat_id === chatId);
     if (selectedChat) {
-      setSelectedModel(selectedChat.model || "ChatGPT");
+      setSelectedModel(selectedChat.model || ModelName.ChatGPT);
     }
 
     setTimeout(() => inputRef.current?.focus(), 10);

@@ -45,11 +45,19 @@ async function main() {
   const apis = [
     {
       api_id: '2d41b025-6e23-4b71-b31c-74c5cc412a94',
-      api_name: 'ChatGPT-3.5-Turbo',
-      pricing_per_token: '0.000002',  // Updated pricing for GPT-3.5
+      api_name: 'ChatGPT',
+      pricing_per_token: '0.000002',
       input_output_type: 'text',
       status: 'Active',
-      llm_model: 'ChatGPT'  // Keep this the same to maintain compatibility
+      llm_model: 'gpt-4o'
+    },
+    {
+      api_id: '940f32b9-748b-490e-896b-519f45571faa',
+      api_name: 'ChatGPT',
+      pricing_per_token: '0.000002',
+      input_output_type: 'text',
+      status: 'Active',
+      llm_model: 'gpt-3.5-turbo'
     },
     {
       api_id: '4a15e837-4e85-4e91-9c64-3c17f21d8635',

@@ -20,7 +20,7 @@ export class ServerModelFactory {
           }
           return new ChatOpenAI({
             openAIApiKey: process.env.OPENAI_API_KEY,
-            modelName: "gpt-3.5-turbo",
+            modelName: "gpt-4o",
             ...config
           });
 

@@ -31,7 +31,8 @@ export async function handleSubscriptionProcess(data: SubscriptionCheckoutData) 
             productDetails.name
         ].join(' | ');
 
-        await prisma.$transaction(async (tx) => {
+        // Execute transaction and store result
+        const newSubscription = await prisma.$transaction(async (tx) => {
             // Cancel ALL existing subscriptions
             if (activeSubscriptionIds?.length) {
                 for (const sub of activeSubscriptionIds) {
@@ -95,6 +96,9 @@ export async function handleSubscriptionProcess(data: SubscriptionCheckoutData) 
                 renewalDate: new Date(stripeSubscription.current_period_end * 1000).toISOString()
             }
         });
+
+        // Return the new subscription
+        return newSubscription;
 
     } catch (error) {
         logSubscriptionError(error, { userId, operation: 'handleSubscriptionProcess' });

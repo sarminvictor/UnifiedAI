@@ -21,6 +21,8 @@ export interface Chat {
   model?: ModelName;
   updated_at: string;
   isTemp?: boolean;
+  brainstorm_mode?: boolean;
+  brainstorm_settings?: any;
 }
 
 export interface ChatState {

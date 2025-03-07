@@ -22,7 +22,7 @@ export const useMessageOperations = (state: ChatState) => {
 
     const chatId = currentChatId;
     const userMessage = messageService.createUserMessage(messageText, chatId);
-    
+
     setIsLoading(true);
 
     try {
@@ -36,34 +36,34 @@ export const useMessageOperations = (state: ChatState) => {
         ...prev,
         activeChats: prev.activeChats.map((chat: ChatSession) =>
           chat.chat_id === chatId
-            ? { 
-                ...chat, 
-                messages: [...chat.messages, userMessage],
-                updated_at: new Date().toISOString()
-              }
+            ? {
+              ...chat,
+              messages: [...chat.messages, userMessage],
+              updated_at: new Date().toISOString()
+            }
             : chat
         ),
       }));
 
       // Send message and get AI response
       const response = await messageService.sendMessage(chatId, messageText, selectedModel);
-      
+
       if (!response.success) {
         throw new Error(response.message || "Failed to get AI response");
       }
 
       // Update with AI response
       const aiMessage = messageService.createAIMessage(response, chatId);
-      
+
       refreshChats((prev: ChatStateData) => ({
         ...prev,
         activeChats: prev.activeChats.map((chat: ChatSession) =>
           chat.chat_id === chatId
             ? {
-                ...chat,
-                messages: [...chat.messages, aiMessage],
-                updated_at: new Date().toISOString()
-              }
+              ...chat,
+              messages: [...chat.messages, aiMessage],
+              updated_at: new Date().toISOString()
+            }
             : chat
         ),
       }));

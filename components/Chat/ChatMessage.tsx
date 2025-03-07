@@ -27,9 +27,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       className={`mb-4 flex ${isUserMessage ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`p-3 rounded-lg max-w-md ${
-          isUserMessage ? "bg-gray-300 text-black" : "bg-transparent text-gray-800"
-        }`}
+        className={`p-3 rounded-lg max-w-md ${isUserMessage ? "bg-gray-300 text-black" : "bg-transparent text-gray-800"
+          }`}
       >
         {message.userInput && <p>{message.userInput}</p>}
         {message.apiResponse && <p>{message.apiResponse}</p>}

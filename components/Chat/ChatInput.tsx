@@ -29,7 +29,7 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
 
   const handleSend = async () => {
     if (!input.trim()) return;
-    
+
     if (!hasCredits) {
       toast.error('Insufficient credits', {
         description: 'Please add more credits to continue using the service.',
@@ -40,12 +40,12 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
       });
       return;
     }
-    
+
     if (!currentChatId) {
       toast.error('No active chat selected');
       return;
     }
-    
+
     const message = input;
     setInput('');
     if (onSendMessage) {
@@ -61,13 +61,13 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
   };
 
   const isDisabled = isLoading || !hasCredits || !currentChatId;
-  const buttonText = !currentChatId 
-    ? "Select a chat" 
-    : !hasCredits 
-    ? "Buy More Credits" 
-    : isLoading 
-    ? "Loading..." 
-    : "Send";
+  const buttonText = !currentChatId
+    ? "Select a chat"
+    : !hasCredits
+      ? "Buy More Credits"
+      : isLoading
+        ? "Loading..."
+        : "Send";
 
   return (
     <div className="p-4 border-t">
@@ -82,11 +82,10 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
         disabled={isDisabled}
       />
       <button
-        className={`w-full py-2 rounded transition ${
-          isDisabled || !input.trim()
+        className={`w-full py-2 rounded transition ${isDisabled || !input.trim()
             ? "bg-gray-300 text-gray-500 cursor-not-allowed"
             : "bg-blue-500 text-white hover:bg-blue-600"
-        }`}
+          }`}
         onClick={handleSend}
         disabled={isDisabled || !input.trim()}
       >

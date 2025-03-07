@@ -59,16 +59,18 @@ model API {
 }
 
 model Chat {
-  chat_id        String        @id @default(uuid())
-  user_id        String
-  chat_title     String
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
-  deleted        Boolean       @default(false)
-  chat_summary   String?
-  api_usage_logs APIUsageLog[]
-  user           User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  chat_history   ChatHistory[]
+  chat_id             String        @id @default(uuid())
+  user_id             String
+  chat_title          String
+  created_at          DateTime      @default(now())
+  updated_at          DateTime      @updatedAt
+  deleted             Boolean       @default(false)
+  chat_summary        String?
+  brainstorm_mode     Boolean       @default(false)
+  brainstorm_settings Json?
+  api_usage_logs      APIUsageLog[]
+  user                User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chat_history        ChatHistory[]
 }
 
 model ChatHistory {

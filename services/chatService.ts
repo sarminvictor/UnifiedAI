@@ -1,27 +1,9 @@
 import { generateChatId } from '@/utils/chatUtils';
 import { logger } from '@/utils/logger';
 import { ModelName } from '@/types/ai.types';
+import { DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
 
 export const chatService = {
-  async createChat(chatId: string, chatTitle: string = "New Chat") {
-    try {
-      // Don't create chat immediately, wait for first message
-      return {
-        success: true,
-        data: {
-          chat_id: chatId,
-          chat_title: chatTitle,
-          chat_history: [],
-          model: ModelName.ChatGPT,
-          updated_at: new Date().toISOString()
-        }
-      };
-    } catch (error) {
-      logger.error('Create Chat Error:', error);
-      throw error;
-    }
-  },
-
   async deleteChat(chatId: string) {
     try {
       if (chatId.startsWith('temp_')) {
@@ -77,17 +59,41 @@ export const chatService = {
   },
 
   async updateChat(chatId: string, data: any) {
-    const response = await fetch("/api/chat/saveChat", {  // Updated path
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, ...data }),
-    });
+    try {
+      logger.debug('Updating chat with data:', {
+        chatId,
+        chat_title: data.chat_title,
+        brainstorm_mode: data.brainstorm_mode,
+        brainstorm_settings: {
+          messagesLimit: data.brainstorm_settings?.messagesLimit,
+          customPromptLength: data.brainstorm_settings?.customPrompt?.length,
+          summaryModel: data.brainstorm_settings?.summaryModel,
+          additionalModel: data.brainstorm_settings?.additionalModel,
+          mainModel: data.brainstorm_settings?.mainModel
+        }
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to update chat' }));
-      throw new Error(errorData.message || 'Failed to update chat');
+      const response = await fetch("/api/chat/saveChat", {  // Updated path
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId, ...data }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update chat' }));
+        throw new Error(errorData.message || 'Failed to update chat');
+      }
+
+      const result = await response.json();
+      logger.debug('Chat updated successfully:', {
+        chatId,
+        success: result.success
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Update Chat Error:', error);
+      throw error;
     }
-
-    return response.json();
   }
 };

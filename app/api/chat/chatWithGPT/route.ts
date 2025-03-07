@@ -120,9 +120,26 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         deleted: false  // Add check for deleted status
       },
-      include: {
+      select: {
+        chat_id: true,
+        user_id: true,
+        chat_title: true,
+        chat_summary: true,
+        brainstorm_mode: true,
+        brainstorm_settings: true,
         chat_history: {
-          orderBy: { timestamp: 'asc' }
+          orderBy: { timestamp: 'asc' },
+          select: {
+            history_id: true,
+            user_input: true,
+            api_response: true,
+            timestamp: true,
+            model: true,
+            credits_deducted: true,
+            input_type: true,
+            output_type: true,
+            context_id: true
+          }
         }
       }
     });

@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { ChatState, ChatAction } from './types';
 import { ModelName } from '@/types/ai.types';
+import { logger } from '@/utils/logger';
 
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
@@ -11,9 +12,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoading: false,
   credits: null,
   dispatch: (action: ChatAction) => {
-    console.group('Chat Store Action');
-    console.log('Action:', action);
-    console.log('Previous State:', get());
+    logger.debug('Chat Store Action:', action.type);
+    logger.debug('Previous State:', {
+      currentChatId: get().currentChatId,
+      chatsCount: get().chats.length,
+      selectedModel: get().selectedModel
+    });
 
     switch (action.type) {
       case 'SET_CHATS': {
@@ -60,9 +64,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (currentChatId) {
           const chatIndex = chats.findIndex(c => c.chat_id === currentChatId);
           if (chatIndex !== -1) {
+            // Preserve existing brainstorm settings
+            const existingChat = chats[chatIndex];
+            logger.debug('Preserving brainstorm settings when setting model:', {
+              brainstorm_mode: existingChat.brainstorm_mode,
+              brainstorm_settings: existingChat.brainstorm_settings
+            });
+
             chats[chatIndex] = {
-              ...chats[chatIndex],
-              model: action.payload
+              ...existingChat,
+              model: action.payload,
+              // Explicitly preserve brainstorm settings
+              brainstorm_mode: existingChat.brainstorm_mode,
+              brainstorm_settings: existingChat.brainstorm_settings
             };
             set({ chats });
           }
@@ -89,11 +103,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
             model: message.model || get().selectedModel
           };
 
+          const existingChat = chats[chatIndex];
           chats[chatIndex] = {
-            ...chats[chatIndex],
-            chat_history: [...(chats[chatIndex].chat_history || []), messageWithModel],
+            ...existingChat,
+            chat_history: [...(existingChat.chat_history || []), messageWithModel],
             model: get().selectedModel, // Update chat's model
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            // Preserve brainstorm settings
+            brainstorm_mode: existingChat.brainstorm_mode,
+            brainstorm_settings: existingChat.brainstorm_settings
           };
           set({ chats });
         }
@@ -117,8 +135,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const chatIndex = chats.findIndex(c => c.chat_id === chatId);
 
         if (chatIndex !== -1) {
+          const existingChat = chats[chatIndex];
+          logger.debug('Updating chat:', {
+            chatId,
+            updates,
+            existingBrainstormMode: existingChat.brainstorm_mode
+          });
+
+          // Ensure we preserve brainstorm settings if not explicitly updated
+          if (updates.brainstorm_mode === undefined && updates.brainstorm_settings === undefined) {
+            updates.brainstorm_mode = existingChat.brainstorm_mode;
+            updates.brainstorm_settings = existingChat.brainstorm_settings;
+          }
+
           chats[chatIndex] = {
-            ...chats[chatIndex],
+            ...existingChat,
             ...updates
           };
           set({ chats });
@@ -131,11 +162,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const chatIndex = chats.findIndex(c => c.chat_id === tempId);
 
         if (chatIndex !== -1) {
+          const existingChat = chats[chatIndex];
           chats[chatIndex] = {
-            ...chats[chatIndex],
+            ...existingChat,
             chat_id: realId,
             isTemp: false, // Remove temp flag
             ...updates,
+            // Preserve brainstorm settings
+            brainstorm_mode: existingChat.brainstorm_mode,
+            brainstorm_settings: existingChat.brainstorm_settings
           };
           // Update URL when replacing temp chat
           window?.history?.pushState({}, '', `/c/${realId}`);
@@ -184,8 +219,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    console.log('New State:', get());
-    console.groupEnd();
+    logger.debug('New State:', {
+      currentChatId: get().currentChatId,
+      chatsCount: get().chats.length,
+      selectedModel: get().selectedModel
+    });
   }
 }));
 

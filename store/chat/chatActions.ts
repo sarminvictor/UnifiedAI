@@ -10,6 +10,7 @@ import { generateChatId } from '@/utils/chatUtils';
 import { toast } from 'sonner'; // Replace the old toast import with sonner
 import { useSWRConfig } from 'swr';
 import { ModelName } from '@/types/ai.types';
+import { DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
 
 export const useChatActions = () => {
   const dispatch = useChatStore(state => state.dispatch);
@@ -57,15 +58,23 @@ export const useChatActions = () => {
       return;
     }
 
-    // Create temporary chat without real ID
+    // Create temporary chat without real ID - this will only be stored locally
+    // until the first message is sent
     const tempChat = {
       chat_id: `temp_${Date.now()}`, // Temporary ID for state management only
       chat_title: "New Chat",
       chat_history: [],
       model: ModelName.ChatGPT,
       updated_at: new Date().toISOString(),
-      isTemp: true // Add flag to identify temporary chats
+      isTemp: true, // Add flag to identify temporary chats
+      brainstorm_mode: false,
+      brainstorm_settings: DEFAULT_BRAINSTORM_SETTINGS
     };
+
+    logger.debug('Creating new temporary chat:', {
+      chatId: tempChat.chat_id,
+      isTemp: true
+    });
 
     // Add to beginning of chat list
     dispatch({ type: 'SET_CHATS', payload: [tempChat, ...store.chats] });
@@ -132,6 +141,10 @@ export const useChatActions = () => {
       const currentChatId = store.currentChatId;
       if (!currentChatId) throw new Error('No active chat');
 
+      // Get the current chat to check if it's temporary and get its settings
+      const currentChat = store.chats.find(chat => chat.chat_id === currentChatId);
+      if (!currentChat) throw new Error('Chat not found');
+
       // Create optimistic user message
       const optimisticUserMessage = {
         user_input: messageText,
@@ -149,11 +162,13 @@ export const useChatActions = () => {
         }
       });
 
-      // Send message to API
+      // Send message to API with brainstorm settings if it's a temporary chat
       const response = await messageService.sendMessage(
         currentChatId,
         messageText.trim(),
-        store.selectedModel
+        store.selectedModel,
+        currentChat.brainstorm_mode,
+        currentChat.brainstorm_settings
       );
 
       if (!response.success) {

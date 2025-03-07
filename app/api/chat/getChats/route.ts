@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prismaClient';
 import { serverLogger } from '@/utils/serverLogger';
 import { ModelName } from '@/types/ai.types';
+import { DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
 
 interface ChatHistoryEntry {
   history_id: string;
@@ -23,6 +24,8 @@ interface ChatEntry {
   model: ModelName | null;
   updated_at: Date;
   chat_history: ChatHistoryEntry[];
+  brainstorm_mode: boolean;
+  brainstorm_settings: any;
 }
 
 export async function GET(request: NextRequest) {
@@ -54,9 +57,25 @@ export async function GET(request: NextRequest) {
         user_id: user.id,
         deleted: false,
       },
-      include: {
+      select: {
+        chat_id: true,
+        chat_title: true,
+        updated_at: true,
+        brainstorm_mode: true,
+        brainstorm_settings: true,
         chat_history: {
-          orderBy: { timestamp: 'asc' }
+          orderBy: { timestamp: 'asc' },
+          select: {
+            history_id: true,
+            user_input: true,
+            api_response: true,
+            timestamp: true,
+            model: true,
+            credits_deducted: true,
+            input_type: true,
+            output_type: true,
+            context_id: true
+          }
         }
       },
       orderBy: {
@@ -84,7 +103,9 @@ export async function GET(request: NextRequest) {
           model: msg.model || lastModelUsed,
           credits_deducted: msg.credits_deducted || "0"
         })),
-        updated_at: chat.updated_at.toISOString()
+        updated_at: chat.updated_at.toISOString(),
+        brainstorm_mode: chat.brainstorm_mode || false,
+        brainstorm_settings: chat.brainstorm_settings || DEFAULT_BRAINSTORM_SETTINGS
       };
     });
 

@@ -22,29 +22,29 @@ export const useChatMessages = (state: ChatState) => {
     } = state;
 
     if (!messageText.trim() || !credits || !currentChatId) return;
-    
+
     setIsLoading(true);
 
     try {
       // Create chat if new
-      const isNewChat = !chatSessions.find(chat => 
+      const isNewChat = !chatSessions.find(chat =>
         chat.chat_id === currentChatId && chat.messages.length > 0
       );
-      
+
       if (isNewChat) {
         await chatService.createChat(currentChatId, "New Chat");
       }
 
       // User message optimistic update
       const userMessage = messageService.createUserMessage(messageText, currentChatId);
-      optimisticUpdate(refreshChats, (chats) => 
+      optimisticUpdate(refreshChats, (chats) =>
         updateChatOrder(chats, currentChatId, userMessage)
       );
 
       // Send message
       const response = await messageService.sendMessage(
-        currentChatId, 
-        messageText.trim(), 
+        currentChatId,
+        messageText.trim(),
         selectedModel
       );
 
@@ -54,7 +54,7 @@ export const useChatMessages = (state: ChatState) => {
 
       // AI message update
       const aiMessage = messageService.createAIMessage(response, currentChatId);
-      optimisticUpdate(refreshChats, (chats) => 
+      optimisticUpdate(refreshChats, (chats) =>
         updateChatOrder(chats, currentChatId, aiMessage)
       );
 

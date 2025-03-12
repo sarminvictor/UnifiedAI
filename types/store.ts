@@ -13,6 +13,7 @@ export interface BaseMessage {
 export interface ChatMessage extends BaseMessage {
   chat_id: string | null;
   messageId: string;
+  brainstormMessages?: string[];
 }
 
 export interface ChatSession {

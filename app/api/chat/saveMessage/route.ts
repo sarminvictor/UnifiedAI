@@ -130,17 +130,91 @@ export async function POST(request: NextRequest) {
 
     serverLogger.info('🔹 Saving message...');
 
+    // Determine input_type and output_type based on brainstorm mode
+    let inputType = message.inputType || 'text';
+    let outputType = message.outputType || 'text';
+
+    // If this is a brainstorm chat and it's a user message, set the output_type to 'brainstorm'
+    if (chat.brainstorm_mode && message.userInput && !message.apiResponse) {
+      // This is a user message in a brainstorm chat
+      inputType = 'brainstorm';
+      outputType = 'brainstorm';
+
+      serverLogger.info('🔹 Setting message types for brainstorm mode:', {
+        inputType,
+        outputType,
+        isBrainstormChat: true
+      });
+    }
+
+    // Check if this is a combined message (has both user input and API response)
+    // If so, split it into two separate messages
+    if (message.userInput && message.apiResponse) {
+      serverLogger.info('🔹 Splitting combined message into user message and AI response');
+
+      // First save the user message
+      const userMessage = await prisma.chatHistory.create({
+        data: {
+          chat_id: chat.chat_id,
+          user_input: message.userInput,
+          api_response: '',
+          input_type: 'text',
+          output_type: 'text',
+          timestamp: new Date(message.timestamp || new Date().toISOString()),
+          context_id: message.contextId || '',
+          model: message.model,
+          credits_deducted: '0',
+        },
+      });
+
+      // Then save the AI response
+      const aiMessage = await prisma.chatHistory.create({
+        data: {
+          chat_id: chat.chat_id,
+          user_input: '',
+          api_response: message.apiResponse,
+          input_type: inputType,
+          output_type: outputType,
+          timestamp: new Date(new Date(message.timestamp || new Date().toISOString()).getTime() + 1000), // Add 1 second to ensure correct ordering
+          context_id: message.contextId || '',
+          model: message.model,
+          credits_deducted: message.creditsDeducted || '0',
+        },
+      });
+
+      serverLogger.info('✅ Split messages saved successfully:', {
+        userMessage: userMessage.history_id,
+        aiMessage: aiMessage.history_id
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          userInput: userMessage.user_input,
+          apiResponse: aiMessage.api_response,
+          inputType: aiMessage.input_type,
+          outputType: aiMessage.output_type,
+          timestamp: aiMessage.timestamp.toISOString(),
+          contextId: aiMessage.context_id,
+          chatId: chat.chat_id,
+          model: aiMessage.model,
+          isBrainstormChat: chat.brainstorm_mode
+        }
+      });
+    }
+
+    // Otherwise, save as a single message
     const savedMessage = await prisma.chatHistory.create({
       data: {
         chat_id: chat.chat_id,
         user_input: message.userInput,
         api_response: message.apiResponse || '',
-        input_type: message.inputType || 'Text',
-        output_type: message.outputType || 'Text',
+        input_type: inputType,
+        output_type: outputType,
         timestamp: new Date(message.timestamp || new Date().toISOString()),
         context_id: message.contextId || '',
         model: message.model, // Include the model in the message
-        credits_deducted: '0',
+        credits_deducted: message.creditsDeducted || '0',
       },
     });
 
@@ -156,7 +230,8 @@ export async function POST(request: NextRequest) {
         timestamp: savedMessage.timestamp.toISOString(),
         contextId: savedMessage.context_id,
         chatId: chat.chat_id,
-        model: savedMessage.model
+        model: savedMessage.model,
+        isBrainstormChat: chat.brainstorm_mode
       }
     });
 

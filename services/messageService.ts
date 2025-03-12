@@ -1,11 +1,17 @@
 import { ChatMessage } from '@/types/store';
 import { logger } from '@/utils/logger';
 import { chatService } from './chatService';
-import { generateChatId } from '@/utils/chatUtils'; // Add this import
+import { generateChatId } from '@/utils/chatUtils';
 import { ModelName } from '@/types/ai.types';
 import { DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
+import { toast } from 'sonner';
+import { streamingService } from './streamingService';
+import { useChatStore } from '@/store/chat/chatStore';
 
 export const messageService = {
+  /**
+   * Send a message to the AI and handle streaming responses
+   */
   async sendMessage(
     chatId: string,
     messageText: string,
@@ -14,6 +20,9 @@ export const messageService = {
     brainstormSettings = DEFAULT_BRAINSTORM_SETTINGS
   ) {
     try {
+      // Get the store dispatch function
+      const dispatch = useChatStore.getState().dispatch;
+
       const isTemp = chatId.startsWith('temp_');
       let actualChatId = chatId;
       let replacementInfo = null;
@@ -25,131 +34,253 @@ export const messageService = {
         actualChatId = realChatId;
         replacementInfo = { oldId: chatId, newId: actualChatId };
 
-        // Emit event for immediate UI update
-        window.dispatchEvent(new CustomEvent('replaceTempChat', {
-          detail: replacementInfo
-        }));
-
-        logger.debug('Created real chat ID for temp chat:', {
+        logger.debug('Replacing temporary chat ID:', {
           tempId: chatId,
           realId: actualChatId,
           model,
-          brainstormMode,
-          hasSettings: !!brainstormSettings
+          timestamp: new Date().toISOString()
+        });
+
+        // Update the store directly
+        dispatch({
+          type: 'REPLACE_TEMP_CHAT',
+          payload: {
+            tempId: chatId,
+            realId: actualChatId,
+            updates: {
+              brainstorm_mode: brainstormMode,
+              brainstorm_settings: {
+                ...brainstormSettings,
+                mainModel: model
+              }
+            }
+          }
+        });
+
+        // Also dispatch event for compatibility with existing code
+        window.dispatchEvent(new CustomEvent('replaceTempChat', {
+          detail: {
+            tempId: chatId,
+            realId: actualChatId,
+            attempt: 1
+          }
+        }));
+      }
+
+      // Create or update the chat in the database
+      try {
+        logger.debug('Creating/updating chat before sending message:', {
+          chatId: actualChatId,
+          model,
+          brainstormMode
+        });
+
+        await chatService.updateChat(actualChatId, {
+          chat_title: "New Chat",
+          brainstorm_mode: brainstormMode,
+          brainstorm_settings: {
+            ...brainstormSettings,
+            mainModel: model
+          }
+        });
+
+        // Update the chat in the store
+        dispatch({
+          type: 'UPDATE_CHAT',
+          payload: {
+            chatId: actualChatId,
+            updates: {
+              brainstorm_mode: brainstormMode,
+              brainstorm_settings: {
+                ...brainstormSettings,
+                mainModel: model
+              }
+            }
+          }
+        });
+
+        // Wait a short time to ensure the chat is created in the database
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (chatError) {
+        logger.error('Error creating/updating chat:', chatError);
+        // Continue with the message sending even if chat creation fails
+        // The API might create the chat if it doesn't exist
+      }
+
+      // Add the user message to the store immediately (optimistic update)
+      const timestamp = new Date().toISOString();
+
+      // Check if a similar message already exists in the store
+      const currentChat = useChatStore.getState().chats.find(c => c.chat_id === actualChatId);
+      const hasSimilarMessage = currentChat?.chat_history.some(msg =>
+        msg.user_input === messageText &&
+        Math.abs(new Date(msg.timestamp).getTime() - Date.now()) < 5000
+      );
+
+      // Only add the message if it doesn't already exist
+      if (!hasSimilarMessage) {
+        const userMessage = {
+          user_input: messageText,
+          api_response: '',
+          timestamp,
+          model,
+          credits_deducted: '0',
+          inputType: brainstormMode ? 'brainstorm' : 'text',
+          outputType: brainstormMode ? 'brainstorm' : 'text',
+          contextId: actualChatId
+        };
+
+        logger.debug('Adding optimistic user message to store:', {
+          chatId: actualChatId,
+          messageText: messageText.substring(0, 30) + (messageText.length > 30 ? '...' : ''),
+          timestamp,
+          inputType: brainstormMode ? 'brainstorm' : 'text',
+          outputType: brainstormMode ? 'brainstorm' : 'text'
+        });
+
+        dispatch({
+          type: 'ADD_MESSAGE',
+          payload: {
+            chatId: actualChatId,
+            message: userMessage
+          }
+        });
+      } else {
+        logger.debug('Skipping optimistic update - similar message already exists:', {
+          chatId: actualChatId,
+          messageText: messageText.substring(0, 30) + (messageText.length > 30 ? '...' : '')
         });
       }
 
-      // Ensure the model is included in the brainstorm settings
-      // but preserve all other settings that may have been customized
-      const updatedBrainstormSettings = {
-        ...brainstormSettings,
-        mainModel: model // Include the current model in settings
-      };
-
-      logger.debug('Brainstorm settings being saved:', {
-        messagesLimit: updatedBrainstormSettings.messagesLimit,
-        customPrompt: updatedBrainstormSettings.customPrompt?.substring(0, 50) + '...',
-        summaryModel: updatedBrainstormSettings.summaryModel,
-        additionalModel: updatedBrainstormSettings.additionalModel,
-        mainModel: updatedBrainstormSettings.mainModel
+      // Reorder the chat to bring it to the top
+      dispatch({
+        type: 'REORDER_CHATS',
+        payload: actualChatId
       });
 
-      // Save the user message - this will also create the chat if it doesn't exist
-      logger.debug('Saving message to chat:', {
+      // Save the user message to the database
+      try {
+        logger.debug('Saving user message to database:', {
+          chatId: actualChatId,
+          messageText,
+          model
+        });
+
+        // Call the saveMessage API to save the user message
+        const response = await fetch('/api/chat/saveMessage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatId: actualChatId,
+            message: {
+              userInput: messageText,
+              timestamp: timestamp,
+              model,
+              inputType: brainstormMode ? 'brainstorm' : 'text',
+              outputType: brainstormMode ? 'brainstorm' : 'text',
+              contextId: actualChatId
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          logger.error('Error saving user message:', errorData);
+          throw new Error(errorData.message || 'Failed to save user message');
+        }
+
+        // Wait a short time to ensure the message is saved in the database
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (messageError) {
+        logger.error('Error saving user message:', messageError);
+        // Continue with the message sending even if message saving fails
+        // The API might handle this case
+      }
+
+      // Start streaming using the streamingService
+      const streamingResult = await streamingService.startStreaming({
         chatId: actualChatId,
-        isTemp,
-        messageLength: messageText.length,
+        messageText,
         model,
         brainstormMode,
-        brainstormSettings: updatedBrainstormSettings
-      });
+        brainstormSettings,
+        onError: (error) => {
+          logger.error('Streaming error:', error);
 
-      const messageResponse = await fetch('/api/chat/saveMessage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: actualChatId,
-          message: {
-            userInput: messageText,
-            timestamp: new Date().toISOString(),
-            model
-          },
-          // Include chat metadata for new chats
-          chatMetadata: isTemp ? {
-            chatTitle: 'New Chat',
-            brainstorm_mode: brainstormMode,
-            brainstorm_settings: updatedBrainstormSettings
-          } : undefined
-        })
-      });
-
-      if (!messageResponse.ok) {
-        throw new Error('Failed to save message');
-      }
-
-      // Process with AI
-      const aiResponse = await fetch('/api/chat/chatWithGPT', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: actualChatId,
-          message: messageText,
-          modelName: model
-        }),
-      });
-
-      // Handle error responses properly
-      if (!aiResponse.ok) {
-        const errorData = await aiResponse.json();
-        if (aiResponse.status === 403) {
-          throw new Error('Insufficient credits');
+          // Set loading state to false in case of error
+          dispatch({ type: 'SET_LOADING', payload: false });
         }
-        throw new Error(errorData.message || `Error ${aiResponse.status}: ${aiResponse.statusText}`);
+      });
+
+      if (!streamingResult?.success) {
+        const errorMessage = streamingResult && 'error' in streamingResult
+          ? streamingResult.error
+          : 'Failed to get AI response';
+        throw new Error(errorMessage);
       }
 
-      const aiData = await aiResponse.json();
-      if (!aiData.success) {
-        throw new Error(aiData.message || 'AI processing failed');
-      }
-
-      // Return all necessary data
       return {
-        ...aiData,
+        success: true,
+        message: 'Message sent successfully',
         chatId: actualChatId,
-        replaced: replacementInfo
+        replacementInfo
       };
-    } catch (error) {
-      logger.error('Message Service Error:', error);
-      throw error;
+    } catch (error: any) {
+      logger.error('Send message error:', error);
+
+      // Show error toast
+      toast.error(error.message || 'Failed to send message');
+
+      // Set loading state to false in case of error
+      useChatStore.getState().dispatch({
+        type: 'SET_LOADING',
+        payload: false
+      });
+
+      return {
+        success: false,
+        message: error.message || 'Failed to send message'
+      };
     }
   },
 
-  createUserMessage(text: string, chatId: string): ChatMessage {
+  /**
+   * Create a user message object
+   */
+  createUserMessage(text: string, chatId: string, isBrainstormChat = false): ChatMessage {
     return {
       userInput: text,
       apiResponse: '',
-      inputType: 'text',
-      outputType: 'text',
       timestamp: new Date().toISOString(),
+      inputType: isBrainstormChat ? 'brainstorm' : 'text',
+      outputType: isBrainstormChat ? 'brainstorm' : 'text',
       contextId: chatId,
       chat_id: chatId,
       messageId: crypto.randomUUID(),
     };
   },
 
+  /**
+   * Create an AI message object from a response
+   */
   createAIMessage(response: any, chatId: string): ChatMessage {
+    // Determine if this is a brainstorm message
+    const isBrainstorm = response.isBrainstorm;
+    const isSummary = isBrainstorm && response.aiMessage?.output_type === 'summary';
+
     return {
       userInput: '',
       apiResponse: response.aiMessage?.api_response || '',
-      inputType: 'text',
-      outputType: 'text',
+      inputType: isBrainstorm ? 'brainstorm' : 'text',
+      outputType: isSummary ? 'summary' : (isBrainstorm ? 'brainstorm' : 'text'),
       timestamp: new Date().toISOString(),
       contextId: chatId,
       chat_id: chatId,
       messageId: crypto.randomUUID(),
-      model: response.model,
+      model: isBrainstorm ? response.model?.summary : response.model,
       tokensUsed: response.tokensUsed,
       creditsDeducted: response.creditsDeducted,
+      brainstormMessages: response.brainstormMessages,
     };
-  },
+  }
 };

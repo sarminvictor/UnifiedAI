@@ -1,16 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { BrainstormSettings, ChatSettings, DEFAULT_CHAT_SETTINGS, DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
-import { useChat } from './useChat';
+import { useChatStore } from '@/store/chat/chatStore';
 import { chatService } from '@/services/chatService';
 import { logger } from '@/utils/logger';
-import { useChatStore } from '@/store/chat/chatStore';
 
 export const useChatSettings = () => {
     const params = useParams();
     const chatId = params?.chatId as string;
-    const { currentChat } = useChat();
-    const { selectedModel } = useChatStore();
+    const { chats, currentChatId, selectedModel } = useChatStore();
+    const currentChat = chats.find(chat => chat.chat_id === currentChatId);
 
     const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
 

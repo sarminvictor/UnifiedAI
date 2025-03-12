@@ -101,7 +101,10 @@ export async function GET(request: NextRequest) {
           api_response: msg.api_response || '',
           timestamp: msg.timestamp.toISOString(),
           model: msg.model || lastModelUsed,
-          credits_deducted: msg.credits_deducted || "0"
+          credits_deducted: msg.credits_deducted || "0",
+          input_type: msg.input_type || 'text',
+          output_type: msg.output_type || 'text',
+          context_id: msg.context_id
         })),
         updated_at: chat.updated_at.toISOString(),
         brainstorm_mode: chat.brainstorm_mode || false,

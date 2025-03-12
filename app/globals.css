@@ -1,0 +1,99 @@
+/* Brainstorm streaming styles */
+.brainstorm-message {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background-color: #f9f9f9;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.brainstorm-message.alternate {
+  background-color: #f0f7ff;
+}
+
+.brainstorm-message.summary {
+  background-color: #f0fff4;
+  border-left: 4px solid #38a169;
+}
+
+/* Add a subtle highlight effect when a message is completed */
+.brainstorm-message.complete {
+  background-color: #fafafa;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+  opacity: 0.7;
+  transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+}
+
+.brainstorm-message.alternate.complete {
+  background-color: #f5faff;
+}
+
+.brainstorm-message.summary.complete {
+  background-color: #f5fff7;
+}
+
+.brainstorm-message-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #4a5568;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+}
+
+.brainstorm-message-header::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #38a169;
+  margin-right: 0.5rem;
+}
+
+.brainstorm-message-content {
+  white-space: pre-wrap;
+  line-height: 1.5;
+  min-height: 1.5em;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Add a blinking cursor effect for streaming messages */
+.brainstorm-message-content::after {
+  content: '|';
+  display: inline-block;
+  opacity: 1;
+  animation: blink 1s infinite;
+  margin-left: 2px;
+}
+
+/* Hide cursor for completed messages */
+.brainstorm-message.complete .brainstorm-message-content::after {
+  display: none;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Streaming messages container */
+.streaming-messages {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e2e8f0;
+} 

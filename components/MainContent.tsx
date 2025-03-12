@@ -133,11 +133,15 @@ export const MainContent = ({ chatId }: MainContentProps) => {
     fetchCredits();
   }, []);
 
+  // Focus input when current chat changes
   useEffect(() => {
     if (actions.inputRef?.current && currentChatId) {
-      actions.inputRef.current.focus();
+      // Use a short timeout to ensure the DOM has updated
+      setTimeout(() => {
+        actions.inputRef.current?.focus();
+      }, 100);
     }
-  }, [currentChatId]);
+  }, [currentChatId, actions.inputRef]);
 
   const processMessages = React.useCallback((chat: any) => {
     if (!chat) return [];
@@ -150,14 +154,25 @@ export const MainContent = ({ chatId }: MainContentProps) => {
 
     return messages
       .filter((msg: { user_input: any; api_response: any; }) => !!msg?.user_input || !!msg?.api_response)
-      .map((msg: { user_input: any; api_response: any; timestamp: any; model: any; credits_deducted: any; }) => ({
+      .map((msg: any) => ({
+        id: msg.history_id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         userInput: msg.user_input || '',
         apiResponse: msg.api_response || '',
         timestamp: msg.timestamp,
         model: msg.model || '',
-        creditsDeducted: msg.credits_deducted || '0'
+        creditsDeducted: msg.credits_deducted || '0',
+        inputType: msg.input_type || 'text',
+        outputType: msg.output_type || 'text',
+        contextId: msg.context_id || '',
+        tokensUsed: msg.tokens_used || '0',
+        brainstormMessages: msg.brainstorm_messages || []
       }));
   }, []);
+
+  // Process the messages for the current chat
+  const chatMessages = React.useMemo(() => {
+    return processMessages(currentChat);
+  }, [currentChat, processMessages]);
 
   return (
     <div className="flex h-screen">
@@ -179,8 +194,7 @@ export const MainContent = ({ chatId }: MainContentProps) => {
           setSelectedModel={(model) => dispatch({ type: 'SET_MODEL', payload: model })}
         />
         <ChatContainer
-          chatMessages={processMessages(currentChat)}
-          isLoading={isLoading}
+          chatId={currentChatId || ''}
         />
         <ChatInput
           onSendMessage={actions.handleSendMessage}

@@ -16,16 +16,34 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
   const [input, setInput] = React.useState("");
   const localInputRef = React.useRef<HTMLInputElement>(null);
   const activeInputRef = inputRef || localInputRef;
+  const previousLoadingState = React.useRef(isLoading);
 
   // Reset input when chat changes or is removed
   React.useEffect(() => {
     setInput("");
     if (currentChatId && activeInputRef?.current) {
-      activeInputRef.current.focus();
+      // Focus the input when switching to a chat
+      setTimeout(() => {
+        activeInputRef.current?.focus();
+      }, 100);
     } else if (!currentChatId && activeInputRef?.current) {
       activeInputRef.current.blur();
     }
   }, [currentChatId, activeInputRef]);
+
+  // Maintain focus after API responses
+  React.useEffect(() => {
+    // If loading state changes from true to false, it means the API response has completed
+    if (previousLoadingState.current && !isLoading && currentChatId && activeInputRef?.current) {
+      // Focus the input after a short delay to ensure the UI has updated
+      setTimeout(() => {
+        activeInputRef.current?.focus();
+      }, 100);
+    }
+
+    // Update the previous loading state
+    previousLoadingState.current = isLoading;
+  }, [isLoading, currentChatId, activeInputRef]);
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -50,6 +68,10 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
     setInput('');
     if (onSendMessage) {
       onSendMessage(message);
+      // Focus the input after sending a message
+      setTimeout(() => {
+        activeInputRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -80,11 +102,12 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
         className="w-full p-2 border rounded mb-2"
         placeholder={getPlaceholder()}
         disabled={isDisabled}
+        autoFocus={!!currentChatId}
       />
       <button
         className={`w-full py-2 rounded transition ${isDisabled || !input.trim()
-            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-            : "bg-blue-500 text-white hover:bg-blue-600"
+          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+          : "bg-blue-500 text-white hover:bg-blue-600"
           }`}
         onClick={handleSend}
         disabled={isDisabled || !input.trim()}

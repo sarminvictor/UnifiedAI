@@ -30,12 +30,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className} suppressHydrationWarning>
         <Providers>{children}</Providers>
-        <Toaster 
-          position="top-right" 
-          richColors 
+        <Toaster
+          position="top-right"
+          richColors
           closeButton
           toastOptions={{
-            style: { 
+            style: {
               background: 'white',
               border: '1px solid #e2e8f0'
             },

@@ -1,5 +1,6 @@
 import { APIModelConfig, ModelName } from '@/types/ai.types';
 import { AIProvider } from '@/types/ai.types';
+import { MODEL_SYSTEM_PROMPTS, UTILITY_PROMPTS } from './prompts';
 
 export const MODEL_PROVIDER_MAP: Record<ModelName, AIProvider> = {
   [ModelName.ChatGPT]: AIProvider.OPENAI,
@@ -89,10 +90,8 @@ export const CHAT_CONSTANTS = {
   TOKENS_PER_CHAR: 4 // Approximate token count (4 characters per token)
 } as const;
 
+// Re-export system prompts from the centralized prompts file
 export const SYSTEM_PROMPTS = {
-  [ModelName.ChatGPT]: "You are ChatGPT, a large language model trained by OpenAI. Follow instructions carefully. Provide clear, detailed, and conversational responses.",
-  [ModelName.Claude]: "You are Claude, an AI assistant created by Anthropic. Follow instructions carefully. Provide clear, detailed, and conversational responses.",
-  [ModelName.Gemini]: "You are Gemini, an AI assistant created by Google. Follow instructions carefully. Provide clear, detailed, and conversational responses.",
-  [ModelName.DeepSeek]: "You are DeepSeek, an AI assistant created by DeepSeek. Follow instructions carefully. Provide clear, detailed, and conversational responses.",
-  SUMMARY_GENERATION: "Generate a brief summary of this conversation that captures the main topics and key points discussed:"
+  ...MODEL_SYSTEM_PROMPTS,
+  SUMMARY_GENERATION: UTILITY_PROMPTS.SUMMARY_GENERATION
 } as const;

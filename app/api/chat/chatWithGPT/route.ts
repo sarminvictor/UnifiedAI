@@ -22,6 +22,7 @@ import { ServerError, ServerErrorCodes, handleServerError } from '@/utils/server
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { TokenCalculator } from '@/services/ai/tokenCalculator';
 import { BrainstormSettings } from '@/types/chat/settings';
+import { BRAINSTORM_PROMPTS } from '@/utils/prompts';
 
 interface SummaryConfig {
   llm: BaseChatModel;
@@ -29,13 +30,6 @@ interface SummaryConfig {
   currentUserMessage: string;
   currentAiResponse: string;
 }
-
-// Brainstorm summary system prompt
-const BRAINSTORM_SUMMARY_PROMPT = `You are tasked with summarizing a brainstorming session between AI models. 
-Create a concise yet comprehensive summary that captures the key ideas, insights, and perspectives shared during the conversation.
-Focus on the most innovative and valuable points, highlighting areas of agreement and interesting contrasts in viewpoints.
-The summary should be well-structured, easy to understand, and maintain the creative spirit of the brainstorming session.
-Aim to distill the essence of the conversation while preserving the diverse thinking that emerged.`;
 
 function createChain(llm: BaseChatModel, messages: (SystemMessage | HumanMessage | AIMessage)[], previousMessages: ChatMessage[]) {
   return new LLMChain({
@@ -408,7 +402,7 @@ async function handleBrainstormChat(
 
     // Create summary prompt with all brainstorm responses
     const summaryMessages = [
-      new SystemMessage(BRAINSTORM_SUMMARY_PROMPT),
+      new SystemMessage(BRAINSTORM_PROMPTS.SUMMARY),
       new HumanMessage(`Summarize the following brainstorming session that started with this user message: "${userMessage}"\n\nBrainstorming responses:\n${brainstormResponses.join('\n\n')}`)
     ];
 
@@ -784,7 +778,7 @@ async function handleBrainstormChatWithStreaming(
 
       // Create summary prompt with all brainstorm responses
       const summaryMessages = [
-        new SystemMessage(BRAINSTORM_SUMMARY_PROMPT),
+        new SystemMessage(BRAINSTORM_PROMPTS.SUMMARY),
         new HumanMessage(`Summarize the following brainstorming session that started with this user message: "${userMessage}"\n\nBrainstorming responses:\n${brainstormResponses.join('\n\n')}`)
       ];
 

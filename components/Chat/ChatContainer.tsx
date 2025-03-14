@@ -634,7 +634,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatId }) => {
   return (
     <div
       ref={scrollRef}
-      className="flex flex-col h-full overflow-y-auto p-4 space-y-4 scroll-smooth"
+      className="flex flex-col h-full overflow-y-auto p-20 space-y-4 scroll-smooth"
     >
       {/* Display regular messages */}
       {validMessages?.map((message: Message) => (

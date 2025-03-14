@@ -2,6 +2,11 @@
 
 import React, { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
+import rehypeHighlight from 'rehype-highlight';
+import remarkGfm from 'remark-gfm';
+import 'highlight.js/styles/github.css'; // Import a highlight.js style
 
 interface Message {
   id: string;
@@ -92,17 +97,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     return null;
   }
 
-  // Special case: Always render user messages in brainstorm mode
-  if (isUserMessageInBrainstorm) {
-    return (
-      <div className="mb-4 flex justify-end">
-        <div className="p-3 rounded-lg max-w-md bg-gray-300 text-black">
-          <p>{message.userInput}</p>
-        </div>
-      </div>
-    );
-  }
-
   // Handle creditsDeducted which might be a Decimal from Prisma
   const formatCredits = (credits: number | { toString: () => string } | string | undefined) => {
     if (!credits) return "0.00";
@@ -119,18 +113,105 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     return (Math.ceil(creditValue * 100) / 100).toFixed(2);
   };
 
+  // Custom components for ReactMarkdown
+  const MarkdownComponents = {
+    // Style code blocks with proper syntax highlighting
+    code({ node, inline, className, children, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline && match ? (
+        <div className="rounded-md overflow-hidden my-2">
+          <pre className={`${className} p-4 bg-gray-800 text-white overflow-auto`} {...props}>
+            <code className={`language-${match[1]}`}>{children}</code>
+          </pre>
+        </div>
+      ) : (
+        <code className="bg-gray-100 px-1 py-0.5 rounded text-sm" {...props}>
+          {children}
+        </code>
+      );
+    },
+    // Style blockquotes
+    blockquote({ children }: any) {
+      return (
+        <blockquote className="border-l-4 border-gray-300 pl-4 py-1 my-2 italic text-gray-700">
+          {children}
+        </blockquote>
+      );
+    },
+    // Style links
+    a({ href, children }: any) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          {children}
+        </a>
+      );
+    },
+    // Style headings
+    h1: ({ children }: any) => <h1 className="text-xl font-bold my-3">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="text-xl font-bold my-3">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="text-lg font-bold my-2">{children}</h3>,
+    h4: ({ children }: any) => <h4 className="text-base font-bold my-2">{children}</h4>,
+    // Style lists
+    ul: ({ children }: any) => <ul className="list-disc pl-6 my-2">{children}</ul>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-6 my-2">{children}</ol>,
+    // Style tables
+    table: ({ children }: any) => (
+      <div className="overflow-x-auto my-4">
+        <table className="min-w-full border border-gray-300">{children}</table>
+      </div>
+    ),
+    thead: ({ children }: any) => <thead className="bg-gray-100">{children}</thead>,
+    th: ({ children }: any) => <th className="border border-gray-300 px-4 py-2 text-left">{children}</th>,
+    td: ({ children }: any) => <td className="border border-gray-300 px-4 py-2">{children}</td>,
+  };
+
+  // Special case: Always render user messages in brainstorm mode
+  if (isUserMessageInBrainstorm) {
+    return (
+      <div className="mb-8 flex justify-end">
+        <div className="p-3 rounded-lg max-w-md bg-gray-300 text-black">
+          <ReactMarkdown
+            rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+            remarkPlugins={[remarkGfm]}
+            components={MarkdownComponents}
+          >
+            {message.userInput}
+          </ReactMarkdown>
+        </div>
+      </div>
+    );
+  }
+
   // Render a regular message
   if (isUserMessageInBrainstorm || (!isBrainstorm && !isSummary)) {
     return (
       <div
-        className={`mb-4 flex ${isUserMessage ? "justify-end" : "justify-start"}`}
+        className={`${isUserMessage ? "mb-8 flex justify-end" : "mb-12 flex justify-start"}`}
       >
         <div
-          className={`p-3 rounded-lg max-w-md ${isUserMessage ? "bg-gray-300 text-black" : "bg-transparent text-gray-800"
-            }`}
+          className={`p-3 rounded-lg ${isUserMessage
+            ? "max-w-md bg-gray-300 text-black"
+            : "max-w-4xl bg-transparent text-gray-800 prose prose-sm"}`}
         >
-          {message.userInput && <p>{message.userInput}</p>}
-          {message.apiResponse && <p>{message.apiResponse}</p>}
+          {message.userInput && (
+            <ReactMarkdown
+              rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+              remarkPlugins={[remarkGfm]}
+              components={MarkdownComponents}
+            >
+              {message.userInput}
+            </ReactMarkdown>
+          )}
+
+          {message.apiResponse && (
+            <ReactMarkdown
+              rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+              remarkPlugins={[remarkGfm]}
+              components={MarkdownComponents}
+            >
+              {message.apiResponse}
+            </ReactMarkdown>
+          )}
 
           {/* Show model and credits info for AI messages */}
           {!isUserMessage && message.model && message.creditsDeducted !== undefined && (
@@ -146,9 +227,17 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   // Render a brainstorm message (like a group chat)
   if (isBrainstorm && !isSummary && !isUserMessageInBrainstorm) {
     return (
-      <div className="mb-4 flex justify-start">
-        <div className="p-3 rounded-lg max-w-md bg-transparent text-gray-800">
-          {message.apiResponse && <p>{message.apiResponse}</p>}
+      <div className="mb-12 flex justify-start">
+        <div className="p-3 rounded-lg max-w-4xl bg-transparent text-gray-800 prose prose-sm">
+          {message.apiResponse && (
+            <ReactMarkdown
+              rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+              remarkPlugins={[remarkGfm]}
+              components={MarkdownComponents}
+            >
+              {message.apiResponse}
+            </ReactMarkdown>
+          )}
           {message.model && message.creditsDeducted !== undefined && (
             <p className="text-xs text-gray-500 mt-1 text-right">
               Model: {message.model} | Credits: {formatCredits(message.creditsDeducted)}
@@ -162,12 +251,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   // Render a summary message
   if (isSummary) {
     return (
-      <div className="my-6 border-t border-b border-gray-200 py-4">
+      <div className="my-6 mb-12 border-t border-b border-gray-200 py-4">
         <div className="flex items-start">
           <div className="flex flex-col w-full">
-            <div className="bg-transparent p-3 rounded-lg">
+            <div className="bg-transparent p-3 rounded-lg prose prose-sm max-w-4xl">
               <p className="font-medium text-purple-800 mb-2">Brainstorming Summary</p>
-              <p>{message.apiResponse}</p>
+              <ReactMarkdown
+                rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+                remarkPlugins={[remarkGfm]}
+                components={MarkdownComponents}
+              >
+                {message.apiResponse}
+              </ReactMarkdown>
             </div>
             {message.model && message.creditsDeducted !== undefined && (
               <p className="text-xs text-gray-500 mt-1 text-right">

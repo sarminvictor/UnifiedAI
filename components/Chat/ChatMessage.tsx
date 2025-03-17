@@ -169,7 +169,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   if (isUserMessageInBrainstorm) {
     return (
       <div className="mb-8 flex justify-end">
-        <div className="p-3 rounded-lg max-w-md bg-gray-300 text-black">
+        <div className="p-3 rounded-lg max-w-md bg-[#F3F4F6] user-message-bg text-black">
           <ReactMarkdown
             rehypePlugins={[rehypeSanitize, rehypeHighlight]}
             remarkPlugins={[remarkGfm]}
@@ -183,14 +183,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   }
 
   // Render a regular message
-  if (isUserMessageInBrainstorm || (!isBrainstorm && !isSummary)) {
+  if (!isBrainstorm && !isSummary) {
     return (
       <div
         className={`${isUserMessage ? "mb-8 flex justify-end" : "mb-12 flex justify-start"}`}
       >
         <div
           className={`p-3 rounded-lg ${isUserMessage
-            ? "max-w-md bg-gray-300 text-black"
+            ? "max-w-md bg-[#F3F4F6] user-message-bg text-black"
             : "max-w-4xl bg-transparent text-gray-800 prose prose-sm"}`}
         >
           {message.userInput && (
@@ -255,7 +255,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         <div className="flex items-start">
           <div className="flex flex-col w-full">
             <div className="bg-transparent p-3 rounded-lg prose prose-sm max-w-4xl">
-              <p className="font-medium text-purple-800 mb-2">Brainstorming Summary</p>
+              <p className="font-medium text-[#171717] mb-2">Brainstorming Summary</p>
               <ReactMarkdown
                 rehypePlugins={[rehypeSanitize, rehypeHighlight]}
                 remarkPlugins={[remarkGfm]}

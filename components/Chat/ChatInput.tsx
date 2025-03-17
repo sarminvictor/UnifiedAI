@@ -3,6 +3,8 @@
 import React from 'react';
 import { useChatStore } from '@/store/chat/chatStore';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 interface ChatInputProps {
   onSendMessage: ((message: string) => void) | undefined;
@@ -92,28 +94,27 @@ export default function ChatInput({ onSendMessage, isLoading, hasCredits, inputR
         : "Send";
 
   return (
-    <div className="p-4 border-t">
-      <input
-        type="text"
+    <div className="max-w-5xl mx-auto relative h-12 sm:h-14 md:h-16 rounded-full">
+      <Input
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && !isDisabled && handleSend()}
         ref={activeInputRef}
-        className="w-full p-2 border rounded mb-2"
+        className="h-full w-full rounded-full pl-4 pr-24 sm:pl-6 sm:pr-28"
         placeholder={getPlaceholder()}
         disabled={isDisabled}
         autoFocus={!!currentChatId}
       />
-      <button
-        className={`w-full py-2 rounded transition ${isDisabled || !input.trim()
-          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+      <Button
+        className={`absolute h-8 sm:h-10 top-1/2 -translate-y-1/2 right-2 sm:right-3 rounded-full px-3 sm:px-4 ${isDisabled || !input.trim()
+          ? "bg-gray-300 text-gray-500"
           : "bg-blue-500 text-white hover:bg-blue-600"
           }`}
         onClick={handleSend}
         disabled={isDisabled || !input.trim()}
       >
         {buttonText}
-      </button>
+      </Button>
     </div>
   );
 };

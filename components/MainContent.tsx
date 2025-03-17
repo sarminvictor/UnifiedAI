@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Sidebar from "@/components/Sidebar/Sidebar";
@@ -15,6 +15,8 @@ import { mutate } from 'swr';
 import { useChats } from '@/hooks/chat/useChats';
 import { logger } from '@/utils/logger';
 import { ModelName } from '@/types/ai.types';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PanelLeft, XIcon } from 'lucide-react';
 
 interface MainContentProps {
   chatId: string;
@@ -25,6 +27,8 @@ export const MainContent = ({ chatId }: MainContentProps) => {
   const { error, mutate: refreshChats } = useChats();
   const actions = useChatActions();
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Only track pending validations, don't track shown errors
   const pendingValidation = useRef<boolean>(false);
@@ -174,35 +178,130 @@ export const MainContent = ({ chatId }: MainContentProps) => {
     return processMessages(currentChat);
   }, [currentChat, processMessages]);
 
+  // Toggle sidebar for mobile view
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  // Handle responsive behavior
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobileView = window.innerWidth < 640;
+      setIsMobile(isMobileView);
+    };
+
+    // Initial check
+    checkMobile();
+
+    // Add event listener
+    window.addEventListener('resize', checkMobile);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   return (
-    <div className="flex h-screen">
-      <Sidebar
-        chatSessions={chats.map(chat => ({ ...chat, model: chat.model || ModelName.ChatGPT }))}
-        currentChatId={currentChatId}
-        setCurrentChatId={actions.handleSelectChat}
-        handleStartNewChat={actions.handleStartNewChat}
-        handleEditChat={actions.handleEditChat}
-        handleDeleteChat={actions.handleDeleteChat}
-        credits={credits}
-        setSelectedModel={(model) => dispatch({ type: 'SET_MODEL', payload: model })}
-        inputRef={actions.inputRef}
-        refreshChats={refreshChats}
-      />
-      <div className="w-3/4 flex flex-col">
-        <ChatHeader
-          selectedModel={selectedModel}
-          setSelectedModel={(model) => dispatch({ type: 'SET_MODEL', payload: model })}
+    <div className="bg-white flex h-screen overflow-hidden">
+      {/* Mobile overlay - only shown on mobile when sidebar is open */}
+      {isMobile && (
+        <div
+          className={`fixed inset-0 bg-black/20 z-20 sm:hidden ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          style={{ transition: 'opacity 300ms ease' }}
+          onClick={toggleSidebar}
         />
-        <ChatContainer
-          chatId={currentChatId || ''}
-        />
-        <ChatInput
-          onSendMessage={actions.handleSendMessage}
-          isLoading={isLoading}
-          hasCredits={!!credits}
-          inputRef={actions.inputRef}
-          currentChatId={currentChatId}
-        />
+      )}
+
+      {/* Flexible container for sidebar and main content */}
+      <div className="flex w-full h-full">
+        {/* Sidebar - fixed on mobile, part of the flex layout on desktop */}
+        <aside
+          className={`
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+            fixed sm:relative z-30 
+            w-[85%] max-w-xs sm:max-w-none sm:w-1/3 md:w-1/4 lg:w-1/5 h-full flex-shrink-0
+            ${!sidebarOpen ? 'sm:hidden' : ''}
+          `}
+          style={isMobile ? { transition: 'transform 300ms ease' } : {}}
+        >
+          <Sidebar
+            chatSessions={chats.map(chat => ({ ...chat, model: chat.model || ModelName.ChatGPT }))}
+            currentChatId={currentChatId}
+            setCurrentChatId={(chatId) => {
+              actions.handleSelectChat(chatId);
+              if (isMobile) {
+                setSidebarOpen(false);
+              }
+            }}
+            handleStartNewChat={actions.handleStartNewChat}
+            handleEditChat={actions.handleEditChat}
+            handleDeleteChat={actions.handleDeleteChat}
+            credits={credits}
+            setSelectedModel={(model) => dispatch({ type: 'SET_MODEL', payload: model })}
+            inputRef={actions.inputRef}
+            refreshChats={refreshChats}
+          />
+
+          {/* Close button for mobile */}
+          {isMobile && (
+            <button
+              className="absolute top-4 right-4 sm:hidden p-1 rounded-full bg-gray-200 hover:bg-gray-300"
+              onClick={toggleSidebar}
+              aria-label="Close sidebar"
+            >
+              <XIcon className="w-5 h-5" />
+            </button>
+          )}
+        </aside>
+
+        {/* Main content - always takes remaining space */}
+        <main
+          className={`flex-1 h-full flex flex-col min-w-0 ${!sidebarOpen ? 'sm:w-full' : ''}`}
+          style={isMobile ? { transition: 'margin 300ms ease' } : {}}
+        >
+          {/* Header */}
+          <header className="w-full h-[73px] bg-white border-b border-solid z-10">
+            <div className="flex items-center h-full px-2 sm:px-4 w-full">
+              {/* Sidebar toggle button */}
+              <button
+                className="
+                  mr-3 p-2 rounded-md flex items-center justify-center
+                  hover:bg-gray-100 text-gray-600 active:bg-gray-200
+                  transition-colors duration-200
+                "
+                onClick={toggleSidebar}
+                aria-label="Toggle sidebar"
+              >
+                <PanelLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+
+              {/* Chat header with existing functionality - full width */}
+              <div className="flex-1">
+                <ChatHeader
+                  selectedModel={selectedModel}
+                  setSelectedModel={(model) => dispatch({ type: 'SET_MODEL', payload: model })}
+                />
+              </div>
+            </div>
+          </header>
+
+          {/* Chat content */}
+          <ScrollArea className="flex-1">
+            <ChatContainer
+              chatId={currentChatId || ''}
+            />
+          </ScrollArea>
+
+          {/* Message input */}
+          <div className="w-full px-6 sm:px-10 md:px-16 lg:px-20 py-4">
+            <ChatInput
+              onSendMessage={actions.handleSendMessage}
+              isLoading={isLoading}
+              hasCredits={!!credits}
+              inputRef={actions.inputRef}
+              currentChatId={currentChatId}
+            />
+          </div>
+        </main>
       </div>
     </div>
   );

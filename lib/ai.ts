@@ -12,7 +12,7 @@ export const getModelsForProvider = (provider: AIProvider): AIModel[] => {
             provider,
             name: modelName,
             maxTokens: 4096, // Default max tokens, you can adjust this based on model
-            costPer1kTokens: config.costPer1kTokens
+            costPer1kTokens: (config.inputCostPer1kTokens + config.outputCostPer1kTokens) / 2
         });
     }
 

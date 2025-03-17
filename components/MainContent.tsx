@@ -205,8 +205,7 @@ export const MainContent = ({ chatId }: MainContentProps) => {
       {/* Mobile overlay - only shown on mobile when sidebar is open */}
       {isMobile && (
         <div
-          className={`fixed inset-0 bg-black/20 z-20 sm:hidden ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-          style={{ transition: 'opacity 300ms ease' }}
+          className={`fixed inset-0 bg-black/20 z-20 sm:hidden mobile-overlay-transition ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           onClick={toggleSidebar}
         />
       )}
@@ -220,8 +219,8 @@ export const MainContent = ({ chatId }: MainContentProps) => {
             fixed sm:relative z-30 
             w-[85%] max-w-xs sm:max-w-none sm:w-1/3 md:w-1/4 lg:w-1/5 h-full flex-shrink-0
             ${!sidebarOpen ? 'sm:hidden' : ''}
+            ${isMobile ? 'sidebar-transition' : ''}
           `}
-          style={isMobile ? { transition: 'transform 300ms ease' } : {}}
         >
           <Sidebar
             chatSessions={chats.map(chat => ({ ...chat, model: chat.model || ModelName.ChatGPT }))}
@@ -256,7 +255,6 @@ export const MainContent = ({ chatId }: MainContentProps) => {
         {/* Main content - always takes remaining space */}
         <main
           className={`flex-1 h-full flex flex-col min-w-0 ${!sidebarOpen ? 'sm:w-full' : ''}`}
-          style={isMobile ? { transition: 'margin 300ms ease' } : {}}
         >
           {/* Header */}
           <header className="w-full h-[73px] bg-white border-b border-solid z-10">

@@ -83,6 +83,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleSelectChat = async (chatId: string) => {
     if (!chatId || renamingChatId) return;
 
+    // If clicking on the current chat, just focus the input
+    if (chatId === currentChatId) {
+      setTimeout(() => inputRef.current?.focus(), 10);
+      return;
+    }
+
     setCurrentChatId(chatId);
 
     const selectedChat = chatSessions.find((chat) => chat.chat_id === chatId);
@@ -258,46 +264,49 @@ const Sidebar: React.FC<SidebarProps> = ({
                             {chat.chat_title || "New Chat"}
                           </div>
                         </div>
-                        <DropdownMenu
-                          open={openMenuId === chat.chat_id}
-                          onOpenChange={(open) => {
-                            setOpenMenuId(open ? chat.chat_id : null);
-                          }}
-                        >
-                          <DropdownMenuTrigger asChild>
-                            <div
-                              className="absolute inset-y-0 right-2 flex items-center cursor-pointer z-10 chat-menu-button"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className={`w-6 h-6 flex items-center justify-center rounded-full ${chat.chat_id === currentChatId ? 'hover:bg-gray-500' : 'hover:bg-gray-300'}`}>
-                                <MoreVerticalIcon className="w-4 h-4 text-gray-600" />
+                        {/* Only show menu button if chat has messages */}
+                        {chat.chat_history && chat.chat_history.length > 0 ? (
+                          <DropdownMenu
+                            open={openMenuId === chat.chat_id}
+                            onOpenChange={(open) => {
+                              setOpenMenuId(open ? chat.chat_id : null);
+                            }}
+                          >
+                            <DropdownMenuTrigger asChild>
+                              <div
+                                className="absolute inset-y-0 right-2 flex items-center cursor-pointer z-10 chat-menu-button"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className={`w-6 h-6 flex items-center justify-center rounded-full ${chat.chat_id === currentChatId ? 'hover:bg-gray-500' : 'hover:bg-gray-300'}`}>
+                                  <MoreVerticalIcon className="w-4 h-4 text-gray-600" />
+                                </div>
                               </div>
-                            </div>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-24 bg-white">
-                            <DropdownMenuItem
-                              className="cursor-pointer text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRenaming(chat.chat_id, chat.chat_title);
-                              }}
-                            >
-                              Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-sm text-red-600 hover:bg-gray-100 focus:bg-gray-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuId(null);
-                                setTimeout(() => {
-                                  setDeletingChatId(chat.chat_id);
-                                }, 100);
-                              }}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-24 bg-white">
+                              <DropdownMenuItem
+                                className="cursor-pointer text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startRenaming(chat.chat_id, chat.chat_title);
+                                }}
+                              >
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-sm text-red-600 hover:bg-gray-100 focus:bg-gray-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuId(null);
+                                  setTimeout(() => {
+                                    setDeletingChatId(chat.chat_id);
+                                  }, 100);
+                                }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
                       </>
                     )}
                   </div>

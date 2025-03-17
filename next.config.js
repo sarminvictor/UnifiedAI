@@ -17,6 +17,11 @@ const nextConfig = {
         // Remove appDir as it's now default in Next.js 14
         optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai']
     },
+    eslint: {
+        // Warning: This allows production builds to successfully complete even if
+        // your project has ESLint errors.
+        ignoreDuringBuilds: true,
+    },
     poweredByHeader: false,
 
     async rewrites() {

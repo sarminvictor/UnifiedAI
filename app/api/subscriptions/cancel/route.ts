@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";
 import { getServerSession } from "@/lib/auth";
-import stripe from "@/utils/subscriptions/stripe";
 import { sendSubscriptionUpdate } from "@/utils/sse";
+import Stripe from 'stripe';
 
 export async function POST(request: NextRequest) {
     try {
@@ -11,9 +11,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // Initialize Stripe at runtime with environment variables
+        const stripe = process.env.STRIPE_SECRET_KEY
+            ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+                apiVersion: '2025-02-24.acacia',
+            })
+            : null;
+
         // Check if Stripe is initialized
         if (!stripe) {
-            throw new Error('Stripe is not initialized');
+            throw new Error('Stripe is not initialized - missing STRIPE_SECRET_KEY');
         }
 
         // Find user and their active subscriptions
@@ -39,7 +46,7 @@ export async function POST(request: NextRequest) {
             for (const sub of user.subscriptions) {
                 if (sub.stripe_payment_id && sub.stripe_payment_id !== "free_tier") {
                     try {
-                        await stripe!.subscriptions.cancel(sub.stripe_payment_id);
+                        await stripe.subscriptions.cancel(sub.stripe_payment_id);
                         console.log('✅ Canceled Stripe subscription:', sub.stripe_payment_id);
                     } catch (error) {
                         console.error('❌ Failed to cancel Stripe subscription:', error);

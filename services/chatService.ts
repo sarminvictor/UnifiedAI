@@ -4,6 +4,41 @@ import { ModelName } from '@/types/ai.types';
 import { DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
 
 export const chatService = {
+  async createChat(chatId: string, title: string) {
+    try {
+      logger.debug('Creating new chat:', {
+        chatId,
+        title
+      });
+
+      const response = await fetch("/api/chat/saveChat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatId,
+          chat_title: title,
+          chat_history: []
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create chat' }));
+        throw new Error(errorData.message || 'Failed to create chat');
+      }
+
+      const result = await response.json();
+      logger.debug('Chat created successfully:', {
+        chatId,
+        success: result.success
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Create Chat Error:', error);
+      throw error;
+    }
+  },
+
   async deleteChat(chatId: string) {
     try {
       if (chatId.startsWith('temp_')) {

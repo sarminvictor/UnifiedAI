@@ -1,7 +1,6 @@
 {
   "name": "unifiedai",
   "version": "0.1.0",
-  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000 --hostname 0.0.0.0",

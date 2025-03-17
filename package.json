@@ -7,7 +7,7 @@
     "start-dev": "sh scripts/start-dev.sh",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "next lint --dir .",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
     "seed": "ts-node prisma/seed.ts",

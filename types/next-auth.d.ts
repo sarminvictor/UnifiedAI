@@ -5,9 +5,10 @@ declare module 'next-auth' {
     user: {
       id: string;
       email?: string | null;
-      name?: string | null | undefined; // ✅ Allow `undefined` for better compatibility
-      image?: string | null | undefined; // ✅ Ensure consistency with NextAuth types
-    };
+      name?: string | null;
+      image?: string | null;
+      plan?: string | null;
+    }
   }
 
   interface User {

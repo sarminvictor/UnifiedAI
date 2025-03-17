@@ -62,7 +62,25 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.sub as string; // Add user ID to session
+        session.user.id = token.sub as string;
+        // Get user's subscription plan
+        const user = await prisma.user.findUnique({
+          where: { id: token.sub as string },
+          include: {
+            subscriptions: {
+              where: {
+                status: 'Active',
+                end_date: {
+                  gt: new Date()
+                }
+              },
+              include: {
+                plan: true
+              }
+            }
+          }
+        });
+        session.user.plan = user?.subscriptions[0]?.plan?.plan_name || 'Free';
       }
       return session;
     },

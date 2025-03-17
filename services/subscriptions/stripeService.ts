@@ -5,6 +5,10 @@ import { logWebhookEvent } from '@/utils/subscriptions/webhookLogger';
 
 export async function cancelStripeSubscription(stripeId: string) {
     if (!stripeId || stripeId === 'free_tier') return true;
+    if (!stripeClient) {
+        logWebhookEvent('stripe_client_missing', { stripeId });
+        return false;
+    }
 
     try {
         await stripeClient.subscriptions.cancel(stripeId);
@@ -16,6 +20,10 @@ export async function cancelStripeSubscription(stripeId: string) {
 }
 
 export async function getStripeProductDetails(subscriptionId: string): Promise<StripeProductDetails> {
+    if (!stripeClient) {
+        throw new Error('Stripe client not initialized, this function must be called server-side');
+    }
+
     const stripeSubscription = await stripeClient.subscriptions.retrieve(subscriptionId);
     const stripeCustomer = validateCustomer(
         await stripeClient.customers.retrieve(stripeSubscription.customer as string)

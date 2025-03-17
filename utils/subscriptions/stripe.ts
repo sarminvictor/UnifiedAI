@@ -1,12 +1,4 @@
-import Stripe from 'stripe';
-
-// Only initialize Stripe on the server side
-const stripe = typeof window === 'undefined'
-    ? new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2025-02-24.acacia',
-    })
-    : null;
-
+// DO NOT import Stripe at top level to prevent build-time initialization
 // Map plan names to Stripe product IDs
 export const PLAN_TO_STRIPE_PRODUCT = {
     'Free': 'free_tier',
@@ -15,7 +7,27 @@ export const PLAN_TO_STRIPE_PRODUCT = {
 } as const;
 
 // Fallback price ID for testing purposes
-export const FALLBACK_PRICE_ID_FOR_TESTING = 'price_test_123';
+export const FALLBACK_PRICE_ID_FOR_TESTING = 'price_1PXUbXJnRVkWMRYdM1zACJME';
+
+// Dynamic loader for Stripe
+export async function loadStripe() {
+    // Skip during build time
+    if (process.env.VERCEL_ENV === 'build') {
+        return null;
+    }
+
+    try {
+        const { default: Stripe } = await import('stripe');
+        return process.env.STRIPE_SECRET_KEY
+            ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+                apiVersion: '2025-02-24.acacia',
+            })
+            : null;
+    } catch (error) {
+        console.error('Failed to load Stripe:', error);
+        return null;
+    }
+}
 
 // Fetch Stripe price for a plan
 export async function getStripePriceId(planName: keyof typeof PLAN_TO_STRIPE_PRODUCT): Promise<string | null> {
@@ -36,6 +48,7 @@ export async function getStripePriceId(planName: keyof typeof PLAN_TO_STRIPE_PRO
     }
 
     try {
+        const stripe = await loadStripe();
         if (!stripe) {
             throw new Error('Stripe not initialized');
         }
@@ -58,4 +71,5 @@ export async function getStripePriceId(planName: keyof typeof PLAN_TO_STRIPE_PRO
     }
 }
 
-export default stripe;
+// For backwards compatibility, but clients should use the loadStripe function
+export default null;

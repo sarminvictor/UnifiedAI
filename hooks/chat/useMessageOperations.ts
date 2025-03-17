@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger';
 import { messageService } from '@/services/messageService';
 import { chatService } from '@/services/chatService';
 import type { ChatState, ChatSession, ChatStateData } from '@/types/store';
+import { ModelName } from '@/types/ai.types';
 
 export const useMessageOperations = (state: ChatState) => {
   const handleSendMessage = async (messageText: string) => {
@@ -46,7 +47,7 @@ export const useMessageOperations = (state: ChatState) => {
       }));
 
       // Send message and get AI response
-      const response = await messageService.sendMessage(chatId, messageText, selectedModel);
+      const response = await messageService.sendMessage(chatId, messageText, selectedModel as ModelName);
 
       if (!response.success) {
         throw new Error(response.message || "Failed to get AI response");

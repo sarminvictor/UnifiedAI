@@ -5,6 +5,7 @@ import { logger } from '@/utils/logger';
 import ChatMessage from './ChatMessage';
 import { useChatStore } from '@/store/chat/chatStore';
 import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 
 // Define the message interface
 interface Message {
@@ -302,7 +303,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatId }) => {
     messages.forEach(msg => {
       // Create a unique key for the message
       const key = msg.userInput ?
-        `user-${msg.userInput.substring(0, 50)}` :
+        `user-${msg.timestamp}-${msg.userInput.substring(0, 50)}` :
         (msg.outputType === 'summary' ?
           `summary-${msg.timestamp}` :
           `ai-${msg.timestamp}-${msg.apiResponse.substring(0, 50)}`);
@@ -366,37 +367,8 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatId }) => {
       return true;
     });
 
-    // Check if we need to add missing user messages in brainstorm mode
-    const chatForFirstMessage = useChatStore.getState().chats.find(c => c.chat_id === chatId);
-    const isBrainstormModeForFirstMessage = chatForFirstMessage?.brainstorm_mode || false;
-
-    if (isBrainstormModeForFirstMessage) {
-      // Find all user messages in the original messages
-      const originalUserMessages = messages.filter(msg =>
-        msg.userInput && !msg.apiResponse &&
-        msg.inputType === 'text' && msg.outputType === 'brainstorm'
-      );
-
-      // Find user messages that are missing from the filtered list
-      const missingUserMessages = originalUserMessages.filter(origMsg =>
-        !filtered.some(filteredMsg =>
-          filteredMsg.id === origMsg.id
-        )
-      );
-
-      if (missingUserMessages.length > 0) {
-        logger.debug('Adding missing user messages to filtered list:', {
-          count: missingUserMessages.length
-        });
-
-        // Combine all messages and sort them by timestamp to maintain chronological order
-        const combinedMessages = [...filtered, ...missingUserMessages];
-        return combinedMessages.sort((a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
-      }
-    }
-
+    // We don't need to add missing user messages as they should already be in the filtered list
+    // This was causing duplication in brainstorm mode
     return filtered;
   }, [messages, chatId]);
 
@@ -634,7 +606,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatId }) => {
   return (
     <div
       ref={scrollRef}
-      className="flex flex-col h-full overflow-y-auto p-20 space-y-4 scroll-smooth"
+      className="flex flex-col h-full overflow-y-auto px-6 sm:px-10 md:px-16 lg:px-20 py-6 space-y-4 scroll-smooth max-w-5xl mx-auto"
     >
       {/* Display regular messages */}
       {validMessages?.map((message: Message) => (
@@ -651,7 +623,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ chatId }) => {
       {!isNearBottom && (
         <button
           onClick={handleScrollToBottom}
-          className="fixed bottom-20 right-8 bg-white text-gray-600 p-3 rounded-full shadow-lg hover:bg-gray-100 transition-all z-10 border border-gray-200 flex items-center justify-center"
+          className="fixed bottom-24 right-8 bg-white text-gray-600 p-3 rounded-full shadow-lg hover:bg-gray-100 transition-all z-10 border border-gray-200 flex items-center justify-center"
           aria-label="Scroll to bottom"
         >
           <svg

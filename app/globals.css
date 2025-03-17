@@ -184,6 +184,6 @@
 }
 
 /* Ensure code blocks in user messages are readable */
-.bg-gray-300 .prose code {
+.user-message-bg .prose code {
   background-color: rgba(255, 255, 255, 0.5);
 } 

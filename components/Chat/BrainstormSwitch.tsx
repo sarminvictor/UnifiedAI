@@ -90,9 +90,9 @@ export const BrainstormSwitch = ({ onSettingsClick, onToggle }: BrainstormSwitch
                     id="brainstorm-mode"
                     checked={isChecked}
                     onCheckedChange={handleToggle}
-                    className="data-[state=checked]:bg-blue-600 [&>span]:bg-white"
+                    className="data-[state=checked]:bg-[#111827] [&>span]:bg-white"
                 />
-                <Label htmlFor="brainstorm-mode" className="text-sm font-medium">
+                <Label htmlFor="brainstorm-mode" className="text-xs sm:text-sm font-medium">
                     Brainstorm
                 </Label>
             </div>

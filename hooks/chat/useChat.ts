@@ -2,7 +2,7 @@
 
 import { useChatStore } from '@/store/chat/chatStore';
 import { useChatActions } from '@/store/chat/chatActions';
-import { ChatSession } from '@/types/store';
+import { Chat } from '@/store/chat/types';
 import useSWR from 'swr';
 import { chatService } from '@/services/chatService';
 import { ModelName } from '@/types/ai.types';
@@ -16,7 +16,7 @@ export const useChat = () => {
     selectedModel: state.selectedModel,
     isLoading: state.isLoading,
     chatSessions: state.chats,
-    currentChat: state.chats.find((chat: ChatSession) => chat.chat_id === state.currentChatId),
+    currentChat: state.chats.find((chat: Chat) => chat.chat_id === state.currentChatId),
     inputRef: actions.inputRef,
     refreshChats: actions.dispatch,
     handlers: {

@@ -136,7 +136,7 @@ export async function createCreditAdjustment(params: {
             credits_deducted: '0',
             payment_method: 'Adjustment',
             description: params.reason,
-            createdAt: new Date()
+            timestamp: new Date()
         }
     });
 }

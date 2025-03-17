@@ -15,23 +15,34 @@ type ActiveSubscriptionId = {
 const processedEvents = new Set<string>();
 const DEBOUNCE_TIMEOUT = 5000; // 5 seconds
 
-if (!stripeClient || !process.env.STRIPE_WEBHOOK_SECRET) {
-    throw new Error('Missing Stripe configuration');
+// Initialize Stripe directly if the imported client is null
+const stripe = stripeClient || new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2025-02-24.acacia',
+});
+
+if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    throw new Error('Missing Stripe webhook secret');
 }
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.text();
-        const sig = headers().get('stripe-signature');
+        const sig = headers().get('stripe-signature') || '';
 
         if (!sig) {
             return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
         }
 
-        const event = stripeClient.webhooks.constructEvent(
+        if (!process.env.STRIPE_WEBHOOK_SECRET) {
+            return NextResponse.json({ error: 'Missing webhook secret' }, { status: 500 });
+        }
+
+        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+        const event = stripe.webhooks.constructEvent(
             body,
             sig,
-            process.env.STRIPE_WEBHOOK_SECRET
+            webhookSecret
         );
 
         const eventId = `${event.type}-${event.id}`;

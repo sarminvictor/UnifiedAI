@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
     }
 }
 
-export const config = {
-    api: { bodyParser: false }
-};
+export const runtime = 'nodejs';
+
+export const dynamic = 'force-dynamic';
 
 export const GET = async () => {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });

@@ -223,6 +223,13 @@ export const useChatActions = () => {
       !chat.chat_history || chat.chat_history.length === 0
     );
 
+    // If there's an empty chat and it's already the current chat, just focus the input
+    if (emptyChat && emptyChat.chat_id === store.currentChatId) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
+
+    // If there's an empty chat but it's not the current chat, switch to it
     if (emptyChat) {
       dispatch({ type: 'SET_CURRENT_CHAT', payload: emptyChat.chat_id });
       dispatch({ type: 'SET_MODEL', payload: ModelName.ChatGPT });

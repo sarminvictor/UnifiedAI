@@ -61,6 +61,13 @@ export const useChats = () => {
           }
         }
 
+        // Sort chats by updated_at timestamp, newest first
+        mergedChats.sort((a, b) => {
+          const dateA = new Date(a.updated_at).getTime();
+          const dateB = new Date(b.updated_at).getTime();
+          return dateB - dateA; // Descending order (newest first)
+        });
+
         dispatch({
           type: 'SET_CHATS_PRESERVE_SELECTION',
           payload: {

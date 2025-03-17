@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { PanelLeft, XIcon } from 'lucide-react';
 
 interface MainContentProps {
-  chatId: string;
+  chatId?: string;
 }
 
 export const MainContent = ({ chatId }: MainContentProps) => {

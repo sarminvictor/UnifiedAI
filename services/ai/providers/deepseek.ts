@@ -1,4 +1,5 @@
 import { ChatDeepSeek } from '@langchain/deepseek';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 export class DeepSeekService {
     static createModel(modelName: string): BaseChatModel {

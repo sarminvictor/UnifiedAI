@@ -8,10 +8,18 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2025-02-24.acacia',
 });
 
-// New route segment config for Next.js 14
+// Route segment config
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// @ts-ignore
+export const config = {
+    api: {
+        bodyParser: false,
+        externalResolver: true
+    }
+};
 
 export async function POST(req: Request) {
     try {
@@ -93,10 +101,6 @@ export async function POST(req: Request) {
         return errorResponse(error);
     }
 }
-
-export const config = {
-    api: { bodyParser: false }
-};
 
 export const GET = async () => {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });

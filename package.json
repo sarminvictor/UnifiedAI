@@ -6,6 +6,7 @@
     "dev": "next dev --port 3000 --hostname 0.0.0.0",
     "start-dev": "sh scripts/start-dev.sh",
     "build": "next build",
+    "prebuild": "node prisma/migrate-schema.js",
     "start": "next start",
     "lint": "next lint --dir .",
     "format": "prettier --write .",
@@ -22,7 +23,8 @@
     "test:regression:watch": "jest tests/regression --config jest.config.js --watch --runInBand",
     "postinstall": "prisma generate",
     "migrate-chat-ids": "ts-node scripts/migrateChatIds.ts",
-    "db:clear": "ts-node prisma/clear.ts"
+    "db:clear": "ts-node prisma/clear.ts",
+    "db:migrate": "node prisma/migrate-schema.js"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -86,6 +88,7 @@
     "@typescript-eslint/eslint-plugin": "^8.24.1",
     "@typescript-eslint/parser": "^8.24.1",
     "autoprefixer": "^10.4.20",
+    "dotenv-cli": "^8.0.0",
     "eslint": "^9.20.1",
     "eslint-config-next": "^15.1.7",
     "eslint-config-prettier": "^9.1.0",

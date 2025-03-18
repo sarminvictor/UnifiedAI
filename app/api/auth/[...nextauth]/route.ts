@@ -1,19 +1,53 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import prisma from "@/lib/prismaClient"; // Use regular prisma client instead of auth-specific one
+import prisma from "@/lib/prismaClient";
 import type { NextAuthOptions } from "next-auth";
 
-// Added debug code to check if prisma is initialized
-if (!prisma) {
-  console.error("[CRITICAL ERROR] Prisma client is not initialized in NextAuth!");
-} else {
-  console.log("[NextAuth] Prisma client is initialized:", !!prisma);
-  // Try to access a method to verify it's a real client
-  console.log("[NextAuth] Prisma client has findUnique:", !!prisma.user?.findUnique);
+// Check if all required tables exist
+async function checkTablesExist() {
+  try {
+    // Try a simple query to verify table structure
+    console.log("[NextAuth] Checking if required tables exist...");
+
+    // First verify if Prisma is connected
+    const testConnection = await prisma.$queryRaw`SELECT 1 AS connected`;
+    console.log("[NextAuth] Database connection test:", testConnection);
+
+    // Check if User table exists
+    const hasUserTable = await prisma.$queryRaw`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'User'
+      );
+    `;
+    console.log("[NextAuth] User table exists:", hasUserTable);
+
+    // Check if Account table exists (needed for OAuth)
+    const hasAccountTable = await prisma.$queryRaw`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'Account'
+      );
+    `;
+    console.log("[NextAuth] Account table exists:", hasAccountTable);
+
+    return { hasUserTable, hasAccountTable };
+  } catch (error) {
+    console.error("[NextAuth] Error checking tables:", error);
+    return { hasUserTable: false, hasAccountTable: false, error };
+  }
 }
 
-// Log database connection info
+// Initialize table check in the background
+checkTablesExist().catch(console.error);
+
+// Verify Prisma client
+if (!prisma || !prisma.user) {
+  console.error("[NextAuth] CRITICAL: Invalid Prisma client or missing user model");
+}
+
+// Log database URL type
 console.log('[NextAuth] DATABASE_URL type:',
   process.env.DATABASE_URL?.includes('pooler') ? 'Pooler URL' : 'Direct URL');
 
@@ -27,14 +61,13 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: {
-    strategy: "jwt" as const, // Type assertion to ensure proper type
+    strategy: "jwt" as const,
   },
   pages: {
     signIn: '/auth/signin',
     error: '/auth/error',
   },
   callbacks: {
-    // Add some basic callbacks to avoid errors
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
@@ -61,13 +94,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
-
-// Try to access prisma directly right before handler creation
-try {
-  console.log("[NextAuth] Testing prisma access:", !!prisma.user);
-} catch (e) {
-  console.error("[NextAuth] Error testing prisma access:", e);
-}
 
 const handler = NextAuth(authOptions);
 

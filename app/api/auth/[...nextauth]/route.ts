@@ -1,132 +1,72 @@
-import NextAuth, { AuthOptions, SessionStrategy } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import GoogleProvider from 'next-auth/providers/google';
-import prisma from '@/lib/prismaClient'; // Use absolute import
-import bcrypt from 'bcryptjs';
+import NextAuth from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { prisma } from "@/lib/prismaClient";
 import { SubscriptionService } from '@/services/subscriptions/subscription.service';
 
 const subscriptionService = new SubscriptionService();
 
-export const authOptions: AuthOptions = {
+const handler = NextAuth({
+  adapter: PrismaAdapter(prisma),
   providers: [
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },     // Changed from username to email
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        try {
-          if (!credentials?.email || !credentials?.password) {
-            console.log('Missing credentials:', credentials);
-            throw new Error('Missing credentials');
-          }
-
-          const user = await prisma.user.findFirst({
-            where: {
-              email: {
-                equals: credentials.email.toLowerCase(),
-                mode: 'insensitive'
-              }
-            }
-          });
-
-          if (!user || !user.password) {
-            console.log('User not found or missing password:', credentials.email);
-            throw new Error('Invalid email or password');
-          }
-
-          const isValid = await bcrypt.compare(credentials.password, user.password);
-          if (!isValid) {
-            console.log('Invalid password for user:', credentials.email);
-            throw new Error('Invalid email or password');
-          }
-
-          console.log('Login successful for:', credentials.email);
-          return { id: user.id, email: user.email };
-        } catch (error) {
-          console.error('Auth error:', error);
-          throw error;
-        }
-      },
-    }),
-
-    // ✅ Add Google Authentication
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
-  session: { strategy: 'jwt' as SessionStrategy },
-  pages: { signIn: '/auth/signin' },
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, user }) {
       if (session.user) {
-        session.user.id = token.sub as string;
-        // Get user's subscription plan
-        const user = await prisma.user.findUnique({
-          where: { id: token.sub as string },
-          include: {
-            subscriptions: {
-              where: {
-                status: 'Active',
-                end_date: {
-                  gt: new Date()
-                }
-              },
-              include: {
-                plan: true
-              }
-            }
-          }
+        session.user.id = user.id;
+        // Add any additional user data you want in the session
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { credits_remaining: true }
         });
-        session.user.plan = user?.subscriptions[0]?.plan?.plan_name || 'Free';
+        if (dbUser) {
+          session.user.credits_remaining = dbUser.credits_remaining;
+        }
       }
       return session;
     },
-    async jwt({ token, user }) {
-      if (user) {
-        token.sub = user.id;
-      }
-      return token;
-    },
-    async signIn({ user, account }) {
-      if (account?.provider === 'google') {
+    async signIn({ user, account, profile }) {
+      try {
         if (!user.email) {
-          throw new Error('User email is required');
-        }
-
-        try {
-          // Check if user exists
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email },
-          });
-
-          // If new user, create account and subscription
-          if (!existingUser) {
-            const newUser = await prisma.user.create({
-              data: {
-                email: user.email,
-                name: user.name || '',
-                password: '',
-                credits_remaining: '0',
-              },
-            });
-
-            // Create free subscription for new user
-            await subscriptionService.createFreeSubscription(newUser.id);
-          }
-          return true;
-        } catch (error) {
-          console.error('Error in Google sign-in:', error);
           return false;
         }
+
+        // Check if user exists
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        // If new user, create account with initial credits
+        if (!existingUser) {
+          await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name || '',
+              credits_remaining: '50', // Start with 50 credits
+              image: user.image || '',
+            },
+          });
+
+          // Create free subscription for new user
+          await subscriptionService.createFreeSubscription(user.id);
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Error in signIn callback:', error);
+        return false;
       }
-      return true;
     },
   },
-  debug: true, // Enable debug messages
-};
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+  debug: process.env.NODE_ENV === 'development',
+});
 
-const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

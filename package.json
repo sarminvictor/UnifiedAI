@@ -22,7 +22,8 @@
     "test:regression:watch": "jest tests/regression --config jest.config.js --watch --runInBand",
     "postinstall": "prisma generate",
     "migrate-chat-ids": "ts-node scripts/migrateChatIds.ts",
-    "db:clear": "ts-node prisma/clear.ts"
+    "db:clear": "ts-node prisma/clear.ts",
+    "db:fix": "psql -c \"DEALLOCATE ALL\" $DATABASE_URL || true"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

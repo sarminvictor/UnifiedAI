@@ -1,16 +1,25 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import authPrisma from "@/lib/auth-prisma"; // Use dedicated auth prisma client
+import prisma from "@/lib/prismaClient"; // Use regular prisma client instead of auth-specific one
 import type { NextAuthOptions } from "next-auth";
 
+// Added debug code to check if prisma is initialized
+if (!prisma) {
+  console.error("[CRITICAL ERROR] Prisma client is not initialized in NextAuth!");
+} else {
+  console.log("[NextAuth] Prisma client is initialized:", !!prisma);
+  // Try to access a method to verify it's a real client
+  console.log("[NextAuth] Prisma client has findUnique:", !!prisma.user?.findUnique);
+}
+
 // Log database connection info
-console.log('NextAuth route loaded, database URL type:',
+console.log('[NextAuth] DATABASE_URL type:',
   process.env.DATABASE_URL?.includes('pooler') ? 'Pooler URL' : 'Direct URL');
 
 // Simple auth configuration to avoid errors
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(authPrisma),
+  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -52,6 +61,13 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
+
+// Try to access prisma directly right before handler creation
+try {
+  console.log("[NextAuth] Testing prisma access:", !!prisma.user);
+} catch (e) {
+  console.error("[NextAuth] Error testing prisma access:", e);
+}
 
 const handler = NextAuth(authOptions);
 

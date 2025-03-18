@@ -1,5 +1,4 @@
 'use client';
-// Brainstorm mode
 import { useState, useEffect } from 'react';
 import {
     Dialog,

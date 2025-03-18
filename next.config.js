@@ -6,12 +6,6 @@ const nextConfig = {
     // Add this to handle dynamic routes
     output: 'standalone',
 
-    // Add this to handle dynamic API routes
-    experimental: {
-        serverActions: true,
-        serverComponentsExternalPackages: ['*'],
-    },
-
     async rewrites() {
         return [
             {

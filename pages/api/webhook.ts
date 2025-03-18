@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { NextApiRequest, NextApiResponse } from 'next';
 import Stripe from 'stripe';
 import prisma from '@/lib/prismaClient';
 import { APIError, errorResponse } from '@/lib/api-helpers';
@@ -8,32 +7,27 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2025-02-24.acacia',
 });
 
-// Route segment config
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-// @ts-ignore
-// @ts-expect-error
 export const config = {
     api: {
         bodyParser: false,
-        externalResolver: true
-    }
+    },
 };
 
-export async function POST(req: Request) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     try {
-        const body = await req.text();
-        const signature = headers().get('stripe-signature');
+        const signature = req.headers['stripe-signature'];
 
         if (!signature) {
             throw new APIError(400, 'No signature found');
         }
 
         const event = stripe.webhooks.constructEvent(
-            body,
-            signature,
+            req.body,
+            signature as string,
             process.env.STRIPE_WEBHOOK_SECRET!
         );
 
@@ -96,13 +90,9 @@ export async function POST(req: Request) {
             }
         }
 
-        return NextResponse.json({ received: true });
+        return res.status(200).json({ received: true });
     } catch (error) {
         console.error('Webhook error:', error);
-        return errorResponse(error);
+        return errorResponse(error, res);
     }
-}
-
-export const GET = async () => {
-    return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
-};
+} 

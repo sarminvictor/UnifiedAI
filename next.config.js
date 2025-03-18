@@ -11,11 +11,16 @@ const nextConfig = {
                 },
             };
         }
+        // Ignore certain errors
+        config.ignoreWarnings = [
+            { module: /node_modules\/@prisma\/client/ },
+            { module: /node_modules\/next/ },
+        ];
         return config;
     },
     experimental: {
-        // Remove appDir as it's now default in Next.js 14
         optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai'],
+        serverComponentsExternalPackages: ['*'],
     },
     poweredByHeader: false,
 
@@ -75,24 +80,6 @@ const nextConfig = {
         maxInactiveAge: 25 * 1000,
         // number of pages that should be kept simultaneously without being disposed
         pagesBufferLength: 2,
-    },
-
-    // Add this to be more permissive with experimental features
-    experimental: {
-        // This will make the build more permissive
-        serverComponentsExternalPackages: ['*'],
-        // Remove serverActions as it's now default
-        optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai'],
-    },
-
-    // Add this to ignore certain build errors
-    webpack: (config, { isServer }) => {
-        // Ignore certain errors
-        config.ignoreWarnings = [
-            { module: /node_modules\/@prisma\/client/ },
-            { module: /node_modules\/next/ },
-        ];
-        return config;
     },
 
     images: {

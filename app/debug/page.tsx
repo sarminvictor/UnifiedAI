@@ -73,6 +73,23 @@ export default function DebugPage() {
         }
     };
 
+    const dropAndCreateTables = async () => {
+        if (!confirm('WARNING: This will DROP existing NextAuth tables and recreate them. This is destructive and will remove all authentication data. Continue?')) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await fetch('/api/debug/execute-sql?drop=true');
+            const data = await response.json();
+            setResult(data);
+        } catch (error) {
+            setResult({ error: String(error) });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="p-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold mb-6">Diagnostic Information</h1>
@@ -126,6 +143,14 @@ export default function DebugPage() {
                     className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
                 >
                     Execute SQL Directly
+                </button>
+
+                <button
+                    onClick={dropAndCreateTables}
+                    disabled={loading}
+                    className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 disabled:opacity-50"
+                >
+                    Drop & Recreate Tables
                 </button>
 
                 <button

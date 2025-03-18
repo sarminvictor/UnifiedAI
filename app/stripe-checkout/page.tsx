@@ -1,25 +1,12 @@
-"use client";
-
-import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
-import StripeCheckoutContent from './StripeCheckoutContent';
+
+// Import the client component dynamically with SSR disabled
+const StripeCheckoutContent = dynamic(() => import('./StripeCheckoutContent'), {
+    ssr: false,
+    loading: () => <div className="flex min-h-screen items-center justify-center">Loading payment interface...</div>
+});
 
 export default function StripeCheckoutPage() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const planId = searchParams.get("planId");
-
-    const handlePaymentSuccess = () => {
-        router.push(`/payment-success?planId=${planId}`);
-    };
-
-    const handlePaymentFailure = () => {
-        router.push(`/payment-failed?planId=${planId}`);
-    };
-
-    return (
-        <Suspense fallback={<div>Loading payment interface...</div>}>
-            <StripeCheckoutContent />
-        </Suspense>
-    );
+    return <StripeCheckoutContent />;
 }

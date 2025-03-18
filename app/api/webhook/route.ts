@@ -1,80 +1,96 @@
+import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import stripeClient from '@/utils/subscriptions/stripe';
-import { logWebhookEvent } from '@/utils/subscriptions/webhookLogger';
-import { handleCheckoutCompleted, handleSubscriptionUpdated, handleSubscriptionDeleted } from '@/handlers/subscriptions';
+import prisma from '@/lib/prismaClient';
+import { APIError, errorResponse } from '@/lib/api-helpers';
 
-// Type for active subscription IDs
-type ActiveSubscriptionId = {
-    id: string;
-    stripeId: string;
-};
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2025-02-24.acacia',
+});
 
-// Event deduplication tracking
-const processedEvents = new Set<string>();
-const DEBOUNCE_TIMEOUT = 5000; // 5 seconds
+// New route segment config for Next.js 14
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-if (!stripeClient || !process.env.STRIPE_WEBHOOK_SECRET) {
-    throw new Error('Missing Stripe configuration');
-}
-
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
     try {
-        const body = await request.text();
-        const sig = headers().get('stripe-signature');
+        const body = await req.text();
+        const signature = headers().get('stripe-signature');
 
-        if (!sig) {
-            return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+        if (!signature) {
+            throw new APIError(400, 'No signature found');
         }
 
-        const event = stripeClient.webhooks.constructEvent(
+        const event = stripe.webhooks.constructEvent(
             body,
-            sig,
-            process.env.STRIPE_WEBHOOK_SECRET
+            signature,
+            process.env.STRIPE_WEBHOOK_SECRET!
         );
-
-        const eventId = `${event.type}-${event.id}`;
-
-        if (processedEvents.has(eventId)) {
-            console.log('🔄 Skipping duplicate event:', eventId);
-            return NextResponse.json({ received: true, skipped: true });
-        }
-
-        processedEvents.add(eventId);
-        setTimeout(() => processedEvents.delete(eventId), DEBOUNCE_TIMEOUT);
-
-        console.log('Processing webhook event:', event.type, eventId);
 
         switch (event.type) {
-            case 'checkout.session.completed':
-                await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+            case 'checkout.session.completed': {
+                const session = event.data.object as Stripe.Checkout.Session;
+                const userId = session.metadata?.userId;
+                const subscriptionId = session.subscription as string;
+
+                if (!userId) {
+                    throw new APIError(400, 'No user ID found in session');
+                }
+
+                // Create subscription record
+                await prisma.subscription.create({
+                    data: {
+                        subscription_id: subscriptionId,
+                        user_id: userId,
+                        plan_id: session.metadata?.planId || 'default-plan',
+                        start_date: new Date(),
+                        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+                        status: 'active',
+                        payment_status: 'paid',
+                        stripe_info: `active | ${session.customer} | ${session.metadata?.productId}`,
+                        stripe_payment_id: session.payment_intent as string,
+                    },
+                });
+
+                // Update user's credits
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        credits_remaining: '1000',
+                    },
+                });
+
                 break;
+            }
+
             case 'customer.subscription.updated':
-                await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+            case 'customer.subscription.deleted': {
+                const subscription = event.data.object as Stripe.Subscription;
+                const userId = subscription.metadata?.userId;
+
+                if (!userId) {
+                    throw new APIError(400, 'No user ID found in subscription');
+                }
+
+                // Update subscription status
+                await prisma.subscription.update({
+                    where: { subscription_id: subscription.id },
+                    data: {
+                        status: subscription.status,
+                        payment_status: subscription.status === 'active' ? 'paid' : 'cancelled',
+                        end_date: new Date(subscription.current_period_end * 1000),
+                    },
+                });
+
                 break;
-            case 'customer.subscription.deleted':
-                await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-                break;
-            case 'invoice.created':
-            case 'invoice.finalized':
-            case 'invoice.updated':
-            case 'invoice.paid':
-            case 'invoice.payment_succeeded':
-                // These events are expected and can be safely ignored
-                console.log(`📋 Processing invoice event: ${event.type}`);
-                break;
-            default:
-                console.log(`⚠️ Unhandled event type: ${event.type}`);
+            }
         }
 
-        return NextResponse.json({ received: true, eventId, type: event.type });
-    } catch (err) {
-        console.error('❌ Webhook error:', err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : 'Unknown error' },
-            { status: 400 }
-        );
+        return NextResponse.json({ received: true });
+    } catch (error) {
+        console.error('Webhook error:', error);
+        return errorResponse(error);
     }
 }
 

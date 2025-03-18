@@ -93,6 +93,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true });
     } catch (error) {
         console.error('Webhook error:', error);
-        return errorResponse(error, res);
+        if (error instanceof APIError) {
+            return res.status(error.statusCode).json({ error: error.message });
+        }
+        return res.status(500).json({ error: 'Internal server error' });
     }
 } 

@@ -11,11 +11,6 @@ const nextConfig = {
                 },
             };
         }
-        // Ignore certain errors
-        config.ignoreWarnings = [
-            { module: /node_modules\/@prisma\/client/ },
-            { module: /node_modules\/next/ },
-        ];
         return config;
     },
     experimental: {

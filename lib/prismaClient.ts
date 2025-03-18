@@ -6,15 +6,18 @@ import { PrismaClient } from '@prisma/client';
 // Learn more:
 // https://pris.ly/d/help/next-js-best-practices
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// Define the global type for Prisma
+const globalForPrisma = global as unknown as {
+    prisma: PrismaClient | undefined;
+};
 
-export const prisma =
+// Create a new Prisma client instance
+// Note: Engine type is handled via environment variables in vercel.json
+const prisma =
     globalForPrisma.prisma ||
-    new PrismaClient({
-        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-        errorFormat: 'pretty',
-    });
+    new PrismaClient();
 
+// Save the client instance in development
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Graceful shutdown handling
@@ -23,16 +26,5 @@ if (process.env.NODE_ENV !== 'production') {
         await prisma.$disconnect();
     });
 }
-
-// Handle connection errors
-prisma.$on('error', (e) => {
-    console.error('Prisma Client Error:', e);
-});
-
-// Handle connection events
-prisma.$on('query', (e) => {
-    console.log('Query: ' + e.query);
-    console.log('Duration: ' + e.duration + 'ms');
-});
 
 export default prisma;

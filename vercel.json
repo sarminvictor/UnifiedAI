@@ -17,9 +17,7 @@
     }
   ],
   "env": {
-    "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK": "true",
-    "PRISMA_CLIENT_ENGINE_TYPE": "binary",
-    "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary",
-    "PRISMA_GENERATE_DATAPROXY": "false"
+    "PRISMA_CLIENT_ENGINE_TYPE": "library",
+    "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary"
   }
 } 

@@ -7,6 +7,7 @@ const path = require('path');
 
 // Set environment variables to help with connection issues
 process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = 'true';
+process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
 
 async function deployDatabase() {
     try {
@@ -63,7 +64,7 @@ async function deployDatabase() {
         // Push schema to database, handling potential "prepared statement" errors
         console.log('📤 Pushing schema to database...');
         try {
-            await execAsync('npx prisma db push --accept-data-loss');
+            await execAsync('PRISMA_CLIENT_ENGINE_TYPE=library npx prisma db push --accept-data-loss');
             console.log('✅ Schema pushed to database successfully');
         } catch (pushError) {
             if (pushError.message.includes('prepared statement') ||
@@ -74,7 +75,7 @@ async function deployDatabase() {
 
                 // Check if we can verify the tables exist through another method
                 try {
-                    await execAsync('npx prisma db pull --force');
+                    await execAsync('PRISMA_CLIENT_ENGINE_TYPE=library npx prisma db pull --force');
                     console.log('✅ Schema pulled from database successfully');
                     // If the pull works, then we can assume the schema is already in place
                 } catch (pullError) {

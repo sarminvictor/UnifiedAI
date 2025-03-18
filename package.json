@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3000 --hostname 0.0.0.0",
     "start-dev": "sh scripts/start-dev.sh",
-    "build": "node scripts/db-deploy.js && next build",
+    "build": "PRISMA_CLIENT_ENGINE_TYPE=library node scripts/db-deploy.js && next build",
     "start": "next start",
     "lint": "next lint --dir .",
     "format": "prettier --write .",
@@ -13,17 +13,17 @@
     "seed": "ts-node prisma/seed.ts",
     "run-prisma-migrate": "npx prisma migrate dev",
     "run-prisma-migrate-name": "npx prisma migrate dev --name <migration_name>",
-    "prisma-generate": "npx prisma generate",
+    "prisma-generate": "PRISMA_CLIENT_ENGINE_TYPE=library npx prisma generate",
     "prisma-studio": "npx prisma studio",
     "start-prod": "npm run build && npm run start",
     "test": "jest --config jest.config.js",
     "test:watch": "jest --config jest.config.js --watch",
     "test:regression": "jest tests/regression --config jest.config.js --runInBand",
     "test:regression:watch": "jest tests/regression --config jest.config.js --watch --runInBand",
-    "postinstall": "prisma generate",
+    "postinstall": "PRISMA_CLIENT_ENGINE_TYPE=library prisma generate",
     "migrate-chat-ids": "ts-node scripts/migrateChatIds.ts",
     "db:clear": "ts-node prisma/clear.ts",
-    "db:push": "prisma db push --accept-data-loss"
+    "db:push": "PRISMA_CLIENT_ENGINE_TYPE=library prisma db push --accept-data-loss"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

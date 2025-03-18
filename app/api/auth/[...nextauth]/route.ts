@@ -8,6 +8,7 @@ import { Session } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import { User } from "next-auth";
 import { SessionStrategy } from "next-auth";
+import { NextResponse } from "next/server";
 
 const subscriptionService = new SubscriptionService();
 
@@ -97,4 +98,41 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
+// Wrap handler with error handling for Prisma engine issues
+export async function GET(req: Request, context: any) {
+  try {
+    return await handler(req, context);
+  } catch (error) {
+    console.error('NextAuth GET error:', error);
+    if (error instanceof Error && error.message.includes('Invalid client engine type')) {
+      return NextResponse.json(
+        {
+          error: 'Authentication system configuration error',
+          message: 'Please try again later',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        },
+        { status: 500 }
+      );
+    }
+    throw error;
+  }
+}
+
+export async function POST(req: Request, context: any) {
+  try {
+    return await handler(req, context);
+  } catch (error) {
+    console.error('NextAuth POST error:', error);
+    if (error instanceof Error && error.message.includes('Invalid client engine type')) {
+      return NextResponse.json(
+        {
+          error: 'Authentication system configuration error',
+          message: 'Please try again later',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        },
+        { status: 500 }
+      );
+    }
+    throw error;
+  }
+}

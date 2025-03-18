@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/utils/supabase/middleware';
+import { getToken } from 'next-auth/jwt';
 
 // Paths that require authentication
 const protectedPaths = [
@@ -21,12 +22,6 @@ const publicPaths = [
 
 export async function middleware(request: NextRequest) {
   try {
-    // Initialize Supabase client with middleware API
-    const { supabase, response } = createClient(request);
-
-    // Get current session
-    const { data: { session } } = await supabase.auth.getSession();
-
     // Get the pathname from the URL
     const { pathname } = request.nextUrl;
 
@@ -42,17 +37,29 @@ export async function middleware(request: NextRequest) {
 
     // If the path is not protected or is public, allow access
     if (!isProtectedPath || isPublicPath) {
-      return response;
+      return NextResponse.next();
     }
 
-    // If no session and trying to access protected path, redirect to login
+    // Check NextAuth session
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+
+    // If NextAuth session exists, allow access
+    if (token) {
+      return NextResponse.next();
+    }
+
+    // If no NextAuth session, try Supabase
+    const { supabase, response } = createClient(request);
+    const { data: { session } } = await supabase.auth.getSession();
+
+    // If no session from either auth method and trying to access protected path, redirect to login
     if (!session && isProtectedPath) {
       const redirectUrl = new URL('/auth/signin', request.url);
       redirectUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(redirectUrl);
     }
 
-    // User has session, allow access to protected routes
+    // User has Supabase session, allow access to protected routes
     return response;
   } catch (error) {
     console.error('Middleware error:', error);

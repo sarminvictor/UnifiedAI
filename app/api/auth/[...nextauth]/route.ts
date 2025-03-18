@@ -1,13 +1,17 @@
-import NextAuth from "next-auth";
+import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prismaClient";
 import { SubscriptionService } from '@/services/subscriptions/subscription.service';
 import { APIError } from '@/lib/api-helpers';
+import { Session } from "next-auth";
+import { JWT } from "next-auth/jwt";
+import { User } from "next-auth";
+import { SessionStrategy } from "next-auth";
 
 const subscriptionService = new SubscriptionService();
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
@@ -16,12 +20,20 @@ export const authOptions = {
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
+    async session({ session, user, token }: { session: Session; user?: User; token?: JWT }) {
       try {
         if (session.user) {
-          session.user.id = user.id;
+          // If using JWT strategy, get the id from token
+          if (token?.sub) {
+            session.user.id = token.sub;
+          }
+          // If using database strategy, get the id from user
+          else if (user?.id) {
+            session.user.id = user.id;
+          }
+
           const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
+            where: { id: session.user.id },
             select: { credits_remaining: true }
           });
           if (dbUser) {
@@ -34,7 +46,7 @@ export const authOptions = {
         throw new APIError(500, 'Failed to get user session');
       }
     },
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile }: { user: User; account: any; profile?: any }) {
       try {
         if (!user.email) {
           throw new APIError(400, 'Email is required');
@@ -45,7 +57,7 @@ export const authOptions = {
         });
 
         if (!existingUser) {
-          await prisma.user.create({
+          const newUser = await prisma.user.create({
             data: {
               email: user.email,
               name: user.name || '',
@@ -53,7 +65,7 @@ export const authOptions = {
             },
           });
 
-          await subscriptionService.createFreeSubscription(user.id);
+          await subscriptionService.createFreeSubscription(newUser.id);
         }
 
         return true;
@@ -65,7 +77,7 @@ export const authOptions = {
         throw new APIError(500, 'Failed to sign in');
       }
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account }: { token: JWT; user?: User; account?: any }) {
       if (user) {
         token.id = user.id;
       }
@@ -78,7 +90,7 @@ export const authOptions = {
   },
   debug: process.env.NODE_ENV === 'development',
   session: {
-    strategy: 'jwt',
+    strategy: 'jwt' as SessionStrategy,
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 };

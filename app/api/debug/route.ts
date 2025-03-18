@@ -1,67 +1,85 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prismaClient';
+import { getServerSession } from '@/lib/auth';
 
 export async function GET() {
+    // Only enable in development
+    if (process.env.NODE_ENV !== 'development') {
+        return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
+    }
+
     try {
-        // Check environment variables (sanitize sensitive info)
-        const envVars = {
-            // Database
-            DATABASE_URL: process.env.DATABASE_URL ? '✓ Set (value hidden)' : '✗ Missing',
-
-            // NextAuth
-            NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-            NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ? '✓ Set (value hidden)' : '✗ Missing',
-
-            // OAuth providers
-            GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? '✓ Set (value hidden)' : '✗ Missing',
-            GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? '✓ Set (value hidden)' : '✗ Missing',
-
-            // Stripe
-            STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ? '✓ Set (value hidden)' : '✗ Missing',
-            STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ? '✓ Set (value hidden)' : '✗ Missing',
-
-            // Supabase
-            NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-            NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✓ Set (value hidden)' : '✗ Missing',
-
-            // Node environment
-            NODE_ENV: process.env.NODE_ENV,
-            VERCEL_ENV: process.env.VERCEL_ENV,
+        // Check environment variables (masked for security)
+        const envCheck = {
+            hasNextAuthSecret: !!process.env.NEXTAUTH_SECRET,
+            hasNextAuthUrl: !!process.env.NEXTAUTH_URL,
+            nextAuthUrl: process.env.NEXTAUTH_URL,
+            hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+            hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+            hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+            hasSupabaseAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            databaseUrl: process.env.DATABASE_URL?.substring(0, 15) + '...' // Only show beginning for security
         };
 
-        // Test Prisma connection
-        let dbStatus = 'Failed to connect';
+        // Check database connection
+        const dbConnectionTest = await prisma.$queryRaw`SELECT 1 as connected`;
+
+        // Check auth session
+        const session = await getServerSession();
+        const hasSession = !!session;
+
+        // Next Auth table counts with error handling
         let userCount = 0;
-        let prismaModels = Object.keys(prisma).filter(key => !key.startsWith('_'));
+        let accountCount = 0;
+        let sessionCount = 0;
+        let verificationTokenCount = 0;
 
         try {
-            // Simple query to check connection
             userCount = await prisma.user.count();
-            dbStatus = 'Connected successfully';
-        } catch (dbError: any) {
-            dbStatus = `Error: ${dbError.message}`;
+        } catch (e) {
+            console.error('Error counting users:', e);
         }
 
-        // Return diagnostic info
+        try {
+            // @ts-ignore - Model may not exist in the Prisma client yet
+            accountCount = await prisma.account.count();
+        } catch (e) {
+            console.error('Error counting accounts:', e);
+        }
+
+        try {
+            // @ts-ignore - Model may not exist in the Prisma client yet
+            sessionCount = await prisma.session.count();
+        } catch (e) {
+            console.error('Error counting sessions:', e);
+        }
+
+        try {
+            // @ts-ignore - Model may not exist in the Prisma client yet
+            verificationTokenCount = await prisma.verificationToken.count();
+        } catch (e) {
+            console.error('Error counting verification tokens:', e);
+        }
+
         return NextResponse.json({
-            timestamp: new Date().toISOString(),
-            environment: process.env.NODE_ENV,
-            envVars,
-            database: {
-                status: dbStatus,
+            success: true,
+            environmentVariables: envCheck,
+            databaseConnection: dbConnectionTest ? 'Connected' : 'Failed',
+            nextAuthTables: {
                 userCount,
-                availableModels: prismaModels,
-                prismaClient: prisma ? 'Initialized' : 'Not initialized',
-            }
-        });
-    } catch (error: any) {
-        return NextResponse.json(
-            {
-                error: 'Diagnostic check failed',
-                message: error.message,
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+                accountCount,
+                sessionCount,
+                verificationTokenCount
             },
-            { status: 500 }
-        );
+            hasSession,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Debug endpoint error:', error);
+        return NextResponse.json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : null) : null,
+        }, { status: 500 });
     }
 } 

@@ -7,6 +7,7 @@ declare module 'next-auth' {
       email?: string | null;
       name?: string | null | undefined; // ✅ Allow `undefined` for better compatibility
       image?: string | null | undefined; // ✅ Ensure consistency with NextAuth types
+      credits_remaining?: string;
     };
   }
 
@@ -15,5 +16,6 @@ declare module 'next-auth' {
     email?: string | null;
     name?: string | null | undefined; // ✅ Allow `undefined`
     image?: string | null | undefined; // ✅ Allow `undefined`
+    credits_remaining?: string;
   }
 }

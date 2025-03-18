@@ -9,18 +9,5 @@
       "src": "package.json",
       "use": "@vercel/next"
     }
-  ],
-  "env": {
-    " ": "https://unified-ai-lac.vercel.app",
-    "NEXTAUTH_SECRET": "c3caf186e50bf06f1427cb851db216d614c3028f534ef02e32d6eb6fd786797e",
-    "DATABASE_URL": "postgres://postgres.woauvmkdxdibfontjvdi:APkXBcLcDeMgZQu8@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5",
-    "DIRECT_URL": "postgres://postgres.woauvmkdxdibfontjvdi:APkXBcLcDeMgZQu8@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
-  },
-  "build": {
-    "env": {
-      "NEXTAUTH_SECRET": "c3caf186e50bf06f1427cb851db216d614c3028f534ef02e32d6eb6fd786797e",
-      "DATABASE_URL": "postgres://postgres.woauvmkdxdibfontjvdi:APkXBcLcDeMgZQu8@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5",
-      "DIRECT_URL": "postgres://postgres.woauvmkdxdibfontjvdi:APkXBcLcDeMgZQu8@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
-    }
-  }
+  ]
 } 

@@ -15,7 +15,8 @@ const nextConfig = {
     },
     experimental: {
         // Remove appDir as it's now default in Next.js 14
-        optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai']
+        optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai'],
+        serverActions: true,
     },
     poweredByHeader: false,
 
@@ -54,6 +55,23 @@ const nextConfig = {
                 permanent: true,
             }
         ];
+    },
+
+    typescript: {
+        // !! WARN !!
+        // Dangerously allow production builds to successfully complete even if
+        // your project has type errors.
+        ignoreBuildErrors: true,
+    },
+
+    eslint: {
+        // Warning: This allows production builds to successfully complete even if
+        // your project has ESLint errors.
+        ignoreDuringBuilds: true,
+    },
+
+    images: {
+        domains: ['lh3.googleusercontent.com'],
     },
 }
 

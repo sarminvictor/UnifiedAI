@@ -3,7 +3,7 @@
 # Dependencies
 /node_modules
 /.pnp
-.pnp.*
+.pnp.js
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
@@ -36,8 +36,8 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # Env files (Do NOT commit sensitive keys!)
-.env*
-!.env.example
+.env
+.env*.local
 
 # Vercel
 .vercel
@@ -45,3 +45,7 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.vscode/
+.idea/

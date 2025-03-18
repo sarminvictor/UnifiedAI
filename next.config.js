@@ -1,4 +1,16 @@
 /** @type {import('next').NextConfig} */
+
+// Parse direct DB URL to pooler URL for serverless environments
+function getPoolerUrl(url) {
+    if (!url) return '';
+    if (url.includes('pooler.supabase.com:6543')) return url;
+
+    // Convert direct connection to transaction pooler
+    return url
+        .replace('db.woauvmkdxdibfontjvdi.supabase.co:5432', 'aws-0-us-east-1.pooler.supabase.com:6543')
+        .replace('postgres:', 'postgres.woauvmkdxdibfontjvdi:');
+}
+
 const nextConfig = {
     reactStrictMode: true,
     poweredByHeader: false,
@@ -24,7 +36,10 @@ const nextConfig = {
 
     // Ensure environment variables are available during build
     env: {
-        DATABASE_URL: process.env.DATABASE_URL,
+        // Use transaction pooler URL for serverless environments
+        DATABASE_URL: process.env.VERCEL
+            ? getPoolerUrl(process.env.DATABASE_URL)
+            : process.env.DATABASE_URL,
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,

@@ -1,138 +1,87 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prismaClient";
-import type { NextAuthOptions } from "next-auth";
-import bcrypt from "bcryptjs";
+import { SubscriptionService } from '@/services/subscriptions/subscription.service';
+import { APIError } from '@/lib/api-helpers';
 
-// Check if all required tables exist
-async function checkTablesExist() {
-  try {
-    // Try a simple query to verify table structure
-    console.log("[NextAuth] Checking if required tables exist...");
+const subscriptionService = new SubscriptionService();
 
-    // First verify if Prisma is connected
-    const testConnection = await prisma.$queryRaw`SELECT 1 AS connected`;
-    console.log("[NextAuth] Database connection test:", testConnection);
-
-    // Check if User table exists
-    const hasUserTable = await prisma.$queryRaw`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'User'
-      );
-    `;
-    console.log("[NextAuth] User table exists:", hasUserTable);
-
-    // Check if Account table exists (needed for OAuth)
-    const hasAccountTable = await prisma.$queryRaw`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'Account'
-      );
-    `;
-    console.log("[NextAuth] Account table exists:", hasAccountTable);
-
-    return { hasUserTable, hasAccountTable };
-  } catch (error) {
-    console.error("[NextAuth] Error checking tables:", error);
-    return { hasUserTable: false, hasAccountTable: false, error };
-  }
-}
-
-// Log database URL type
-console.log('[NextAuth] DATABASE_URL type:',
-  process.env.DATABASE_URL?.includes('pooler') ? 'Pooler URL' : 'Direct URL');
-
-// Simple auth configuration to avoid errors
-export const authOptions: NextAuthOptions = {
+export const authOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Missing credentials");
+  ],
+  callbacks: {
+    async session({ session, user }) {
+      try {
+        if (session.user) {
+          session.user.id = user.id;
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { credits_remaining: true }
+          });
+          if (dbUser) {
+            session.user.credits_remaining = dbUser.credits_remaining;
+          }
+        }
+        return session;
+      } catch (error) {
+        console.error('Session callback error:', error);
+        throw new APIError(500, 'Failed to get user session');
+      }
+    },
+    async signIn({ user, account, profile }) {
+      try {
+        if (!user.email) {
+          throw new APIError(400, 'Email is required');
         }
 
-        try {
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        if (!existingUser) {
+          await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name || '',
+              credits_remaining: '50',
+            },
           });
 
-          if (!user || !user.password) {
-            throw new Error("User not found");
-          }
-
-          const isPasswordValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
-
-          if (!isPasswordValid) {
-            throw new Error("Invalid credentials");
-          }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name || null,
-          };
-        } catch (error) {
-          console.error("[NextAuth] Authorization error:", error);
-          return null;
+          await subscriptionService.createFreeSubscription(user.id);
         }
+
+        return true;
+      } catch (error) {
+        console.error('SignIn callback error:', error);
+        if (error instanceof APIError) {
+          throw error;
+        }
+        throw new APIError(500, 'Failed to sign in');
       }
-    })
-  ],
-  session: {
-    strategy: "jwt" as const,
-  },
-  pages: {
-    signIn: '/auth/signin',
-    error: '/auth/error',
-  },
-  callbacks: {
-    async session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub;
-      }
-      return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
       }
       return token;
     },
   },
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
   debug: process.env.NODE_ENV === 'development',
-  logger: {
-    error(code, metadata) {
-      console.error(`[next-auth][error][${code}]`, metadata);
-    },
-    warn(code) {
-      console.warn(`[next-auth][warn][${code}]`);
-    },
-    debug(code, metadata) {
-      console.log(`[next-auth][debug][${code}]`, metadata);
-    },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 };
-
-// Initialize table check once
-checkTablesExist().catch(error => {
-  console.error("[NextAuth] Table check failed:", error);
-});
 
 const handler = NextAuth(authOptions);
 

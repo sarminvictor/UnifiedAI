@@ -15,7 +15,7 @@ export const createClient = (cookieStore: ReturnType<typeof cookies>) => {
                         cookieStore.set({ name, value, ...options });
                     } catch (error) {
                         // The `set` method was called from a Server Component.
-                        // This can be safely ignored if you have middleware refreshing
+                        // This can be ignored if you have middleware refreshing
                         // user sessions.
                     }
                 },
@@ -23,8 +23,8 @@ export const createClient = (cookieStore: ReturnType<typeof cookies>) => {
                     try {
                         cookieStore.set({ name, value: "", ...options });
                     } catch (error) {
-                        // The `remove` method was called from a Server Component.
-                        // This can be safely ignored if you have middleware refreshing
+                        // The `delete` method was called from a Server Component.
+                        // This can be ignored if you have middleware refreshing
                         // user sessions.
                     }
                 },

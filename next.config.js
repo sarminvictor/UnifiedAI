@@ -1,16 +1,4 @@
 /** @type {import('next').NextConfig} */
-
-// Parse direct DB URL to pooler URL for serverless environments
-function getPoolerUrl(url) {
-    if (!url) return '';
-    if (url.includes('pooler.supabase.com:6543')) return url;
-
-    // Convert direct connection to transaction pooler
-    return url
-        .replace('db.woauvmkdxdibfontjvdi.supabase.co:5432', 'aws-0-us-east-1.pooler.supabase.com:6543')
-        .replace('postgres:', 'postgres.woauvmkdxdibfontjvdi:');
-}
-
 const nextConfig = {
     reactStrictMode: true,
     poweredByHeader: false,
@@ -18,26 +6,21 @@ const nextConfig = {
     // Handle dynamic routes
     output: 'standalone',
 
-    // These have been moved out of experimental in Next.js 14
-    skipTrailingSlashRedirect: true,
-    skipMiddlewareUrlNormalize: true,
-
     // Properly configure dynamic API routes
     experimental: {
-        serverActions: { allowedOrigins: ['localhost:3000', 'unified-ai-lac.vercel.app/'] },
+        serverActions: { allowedOrigins: ['localhost:3000', 'unifiedai.vercel.app'] },
+        // This forces the build to continue despite static generation errors
+        skipTrailingSlashRedirect: true,
+        skipMiddlewareUrlNormalize: true,
     },
 
-    // Ensure environment variables are available during build
-    env: {
-        // Use transaction pooler URL for serverless environments
-        DATABASE_URL: process.env.VERCEL
-            ? getPoolerUrl(process.env.DATABASE_URL)
-            : process.env.DATABASE_URL,
-        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-        NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-    },
+    // Specify which routes should not be statically generated
+    unstable_excludeFiles: [
+        'app/api/**/*.ts',
+        'app/stripe-checkout/**/*.tsx',
+        'app/subscriptions/payment-success/**/*.tsx',
+        'app/subscriptions/payment-failed/**/*.tsx',
+    ],
 
     async rewrites() {
         return [

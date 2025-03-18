@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node prisma/fix-schema.js && next build",
+  "buildCommand": "npm run build",
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],

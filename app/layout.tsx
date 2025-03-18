@@ -3,9 +3,7 @@ import { Inter } from 'next/font/google';
 import { Providers } from '../lib/providers';
 import 'styles/globals.css';
 import { Toaster } from 'sonner';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import SupabaseAuthIntegration from '@/app/auth/supabase-auth-integration';
+import { getSession } from 'next-auth/react';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -14,41 +12,44 @@ export const metadata: Metadata = {
   description: 'AI Chat Application',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = getSession();
+
+  if (!session) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/auth/signin';
+    }
+    return null;
+  }
 
   return (
     <html lang="en">
       <body className={inter.className} suppressHydrationWarning>
-        <Providers session={session}>
-          {children}
-          {/* This component syncs NextAuth and Supabase auth */}
-          <SupabaseAuthIntegration />
-          <Toaster
-            position="top-right"
-            richColors
-            closeButton
-            toastOptions={{
-              style: {
-                background: 'white',
-                border: '1px solid #e2e8f0'
-              },
-              classNames: {
-                error: 'bg-red-500 text-white border-none',
-              },
-              duration: 8000
-            }}
-            theme="light"
-            // Allow multiple toasts to be more visible
-            expand={true}
-            visibleToasts={3}
-            gap={8}
-          />
-        </Providers>
+        <Providers>{children}</Providers>
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: 'white',
+              border: '1px solid #e2e8f0'
+            },
+            classNames: {
+              error: 'bg-red-500 text-white border-none',
+            },
+            duration: 8000
+          }}
+          theme="light"
+          // Allow multiple toasts to be more visible
+          expand={true}
+          visibleToasts={3}
+          gap={8}
+        />
       </body>
     </html>
   );

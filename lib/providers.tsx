@@ -1,18 +1,11 @@
 'use client';
 
-import React from 'react';
 import { SessionProvider } from "next-auth/react";
 import { GeistProvider } from '@geist-ui/core';
 
-export function Providers({
-  children,
-  session
-}: {
-  children: React.ReactNode;
-  session: any;
-}) {
+export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider session={session}>
+    <SessionProvider>
       <GeistProvider>
         {children}
       </GeistProvider>

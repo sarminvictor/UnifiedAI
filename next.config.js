@@ -3,8 +3,13 @@ const nextConfig = {
     reactStrictMode: true,
     poweredByHeader: false,
 
-    // Add this to handle dynamic routes
+    // Handle dynamic routes
     output: 'standalone',
+
+    // Properly configure dynamic API routes
+    experimental: {
+        serverActions: { allowedOrigins: ['localhost:3000', 'unifiedai.vercel.app'] },
+    },
 
     async rewrites() {
         return [

@@ -18,7 +18,7 @@ export default function StripeCheckoutPage() {
     };
 
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div>Loading payment interface...</div>}>
             <StripeCheckoutContent />
         </Suspense>
     );

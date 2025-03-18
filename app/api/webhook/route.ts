@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { prisma } from '@/lib/prisma';
-import { APIError } from '@/lib/errors';
+import prisma from '@/lib/prismaClient';
+
+// Define APIError class since we don't have the appropriate import
+class APIError extends Error {
+    statusCode: number;
+
+    constructor(message: string, statusCode: number) {
+        super(message);
+        this.name = 'APIError';
+        this.statusCode = statusCode;
+    }
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2023-10-16',
+    apiVersion: '2023-10-16' as any, // Cast to any to avoid TypeScript errors
 });
 
 export async function POST(req: Request) {
@@ -65,7 +75,7 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json({ received: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Webhook error:', error);
         if (error instanceof APIError) {
             return NextResponse.json(

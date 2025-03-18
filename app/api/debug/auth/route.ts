@@ -3,11 +3,7 @@ import { getServerSession } from '@/lib/auth';
 import prisma from '@/lib/prismaClient';
 
 export async function GET() {
-    // Only enable in development for security
-    if (process.env.NODE_ENV !== 'development') {
-        return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
-    }
-
+    // Allow in both development and production for troubleshooting
     try {
         // Check NextAuth environment variables
         const authEnvCheck = {

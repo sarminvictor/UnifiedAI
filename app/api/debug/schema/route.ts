@@ -1,127 +1,147 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import prisma from '@/lib/prismaClient';
 
-// Check if the schema has required models for NextAuth
+// This endpoint is for manually applying schema changes when the build script fails
 export async function GET() {
     try {
-        // Read the schema file
-        const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');
+        // First check if the NextAuth tables already exist
+        const tableCheck = await checkTables();
 
-        let schemaExists = false;
-        let schemaContents = '';
-        let hasUserModel = false;
-        let hasAccountModel = false;
-        let hasSessionModel = false;
-        let hasVerificationTokenModel = false;
-
-        // Read schema file if it exists
-        try {
-            schemaExists = fs.existsSync(schemaPath);
-            if (schemaExists) {
-                schemaContents = fs.readFileSync(schemaPath, 'utf8');
-
-                // Check for required models
-                hasUserModel = schemaContents.includes('model User {');
-                hasAccountModel = schemaContents.includes('model Account {');
-                hasSessionModel = schemaContents.includes('model Session {');
-                hasVerificationTokenModel = schemaContents.includes('model VerificationToken {');
-            }
-        } catch (err) {
-            // File system access might be restricted in some environments
-            schemaExists = false;
+        // If all tables exist, return success
+        if (tableCheck.hasUsers && tableCheck.hasAccounts && tableCheck.hasSessions && tableCheck.hasVerificationTokens) {
+            return NextResponse.json({
+                success: true,
+                message: 'All required tables already exist',
+                tables: tableCheck
+            });
         }
 
-        // Required fields for NextAuth models
-        const requiredFields = {
-            User: ['id', 'email', 'name'],
-            Account: ['id', 'userId', 'type', 'provider', 'providerAccountId'],
-            Session: ['id', 'userId', 'expires'],
-            VerificationToken: ['identifier', 'token', 'expires']
+        // If tables don't exist, we'll need to create them with raw SQL
+        // These SQL statements match the NextAuth schema in Prisma
+        const createAccountsTable = `
+            CREATE TABLE IF NOT EXISTS "accounts" (
+                "id" TEXT NOT NULL,
+                "userId" TEXT NOT NULL,
+                "type" TEXT NOT NULL,
+                "provider" TEXT NOT NULL,
+                "providerAccountId" TEXT NOT NULL,
+                "refresh_token" TEXT,
+                "access_token" TEXT,
+                "expires_at" INTEGER,
+                "token_type" TEXT,
+                "scope" TEXT,
+                "id_token" TEXT,
+                "session_state" TEXT,
+
+                CONSTRAINT "accounts_pkey" PRIMARY KEY ("id"),
+                CONSTRAINT "accounts_provider_providerAccountId_key" UNIQUE ("provider", "providerAccountId")
+            );
+        `;
+
+        const createSessionsTable = `
+            CREATE TABLE IF NOT EXISTS "sessions" (
+                "id" TEXT NOT NULL,
+                "sessionToken" TEXT NOT NULL,
+                "userId" TEXT NOT NULL,
+                "expires" TIMESTAMP(3) NOT NULL,
+
+                CONSTRAINT "sessions_pkey" PRIMARY KEY ("id"),
+                CONSTRAINT "sessions_sessionToken_key" UNIQUE ("sessionToken")
+            );
+        `;
+
+        const createVerificationTokensTable = `
+            CREATE TABLE IF NOT EXISTS "verification_tokens" (
+                "identifier" TEXT NOT NULL,
+                "token" TEXT NOT NULL,
+                "expires" TIMESTAMP(3) NOT NULL,
+
+                CONSTRAINT "verification_tokens_pkey" PRIMARY KEY ("identifier", "token")
+            );
+        `;
+
+        // Add foreign key constraints
+        const addForeignKeys = `
+            ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+            ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        `;
+
+        // Execute the SQL statements
+        const results = {
+            accounts: !tableCheck.hasAccounts,
+            sessions: !tableCheck.hasSessions,
+            verificationTokens: !tableCheck.hasVerificationTokens,
+            foreignKeys: true
         };
 
-        // Check if models have required fields
-        const modelFieldCheck = Object.entries(requiredFields).reduce((acc, [modelName, fields]) => {
-            const modelPattern = new RegExp(`model ${modelName} {([^}]*)}`, 's');
-            const modelMatch = schemaContents.match(modelPattern);
+        if (!tableCheck.hasAccounts) {
+            await prisma.$executeRawUnsafe(createAccountsTable);
+        }
 
-            if (!modelMatch) {
-                acc[modelName] = { exists: false, fields: {} };
-                return acc;
+        if (!tableCheck.hasSessions) {
+            await prisma.$executeRawUnsafe(createSessionsTable);
+        }
+
+        if (!tableCheck.hasVerificationTokens) {
+            await prisma.$executeRawUnsafe(createVerificationTokensTable);
+        }
+
+        try {
+            // Only try to add foreign keys if we created the tables
+            if (!tableCheck.hasAccounts || !tableCheck.hasSessions) {
+                await prisma.$executeRawUnsafe(addForeignKeys);
             }
-
-            const modelContent = modelMatch[1];
-            acc[modelName] = {
-                exists: true,
-                fields: fields.reduce((fieldAcc, field) => {
-                    fieldAcc[field] = modelContent.includes(field);
-                    return fieldAcc;
-                }, {} as Record<string, boolean>)
-            };
-
-            return acc;
-        }, {} as Record<string, { exists: boolean, fields: Record<string, boolean> }>);
-
-        // Generate recommendations
-        const recommendations = [];
-
-        if (!schemaExists) {
-            recommendations.push('Prisma schema file not found. Make sure it exists at prisma/schema.prisma');
+        } catch (fkError) {
+            // Foreign key errors are non-critical - tables might already have constraints
+            console.error('Error adding foreign keys:', fkError);
+            results.foreignKeys = false;
         }
 
-        if (!hasUserModel) {
-            recommendations.push('User model is missing in the Prisma schema. Required for NextAuth.');
-        }
-
-        if (!hasAccountModel) {
-            recommendations.push('Account model is missing in the Prisma schema. Required for OAuth.');
-        }
-
-        if (!hasSessionModel) {
-            recommendations.push('Session model is missing in the Prisma schema. Required for NextAuth.');
-        }
-
-        if (!hasVerificationTokenModel) {
-            recommendations.push('VerificationToken model is missing. Required for email verification.');
-        }
-
-        // Check for missing fields in models
-        Object.entries(modelFieldCheck).forEach(([modelName, { exists, fields }]) => {
-            if (exists) {
-                Object.entries(fields).forEach(([fieldName, exists]) => {
-                    if (!exists) {
-                        recommendations.push(`The ${fieldName} field is missing in the ${modelName} model.`);
-                    }
-                });
-            }
-        });
-
-        // Get database provider from schema
-        let databaseProvider = 'unknown';
-        const providerMatch = schemaContents.match(/provider\s*=\s*"([^"]+)"/);
-        if (providerMatch) {
-            databaseProvider = providerMatch[1];
-        }
+        // Check again to see if tables were created
+        const finalCheck = await checkTables();
 
         return NextResponse.json({
-            schemaExists,
-            databaseProvider,
-            hasRequiredModels: {
-                User: hasUserModel,
-                Account: hasAccountModel,
-                Session: hasSessionModel,
-                VerificationToken: hasVerificationTokenModel
-            },
-            modelFieldCheck,
-            recommendations,
+            success: true,
+            message: 'Schema changes applied',
+            created: results,
+            tables: finalCheck
         });
-    } catch (error: any) {
-        return NextResponse.json(
-            {
-                error: 'Schema diagnostic check failed',
-                message: error.message,
-            },
-            { status: 500 }
-        );
+    } catch (error) {
+        console.error('Error applying schema changes:', error);
+        return NextResponse.json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        }, { status: 500 });
+    }
+}
+
+// Helper function to check if tables exist
+async function checkTables() {
+    try {
+        const result: any = await prisma.$queryRaw`
+            SELECT 
+                EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'users') as "hasUsers",
+                EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'accounts') as "hasAccounts",
+                EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sessions') as "hasSessions",
+                EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'verification_tokens') as "hasVerificationTokens"
+        `;
+
+        return result[0] || {
+            hasUsers: false,
+            hasAccounts: false,
+            hasSessions: false,
+            hasVerificationTokens: false
+        };
+    } catch (error) {
+        console.error('Error checking tables:', error);
+        return {
+            hasUsers: false,
+            hasAccounts: false,
+            hasSessions: false,
+            hasVerificationTokens: false
+        };
     }
 } 

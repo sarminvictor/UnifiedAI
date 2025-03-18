@@ -20,6 +20,52 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Docker Deployment
+
+This project supports Docker for production deployment.
+
+### Building the Docker Image
+
+```bash
+# Using npm script
+npm run docker:build
+
+# OR using Docker directly
+docker build -t unifiedai .
+```
+
+### Running with Docker
+
+```bash
+# Using npm script
+npm run docker:run
+
+# OR using Docker directly
+docker run -p 3000:3000 --env-file .env unifiedai
+```
+
+### Using Docker Compose
+
+```bash
+# Start the app
+docker-compose up -d
+
+# Stop the app
+docker-compose down
+```
+
+## Database Management
+
+The application uses Prisma with PostgreSQL. The database schema is automatically synced on application startup through the `migrate-schema.js` script.
+
+```bash
+# Push schema changes directly
+npm run db:push
+
+# Run migrations manually
+npm run db:migrate
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

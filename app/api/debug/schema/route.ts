@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prismaClient';
 
+// Force correct engine type
+if (process.env.NODE_ENV === 'production') {
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
+}
+
 // This endpoint is for manually applying schema changes when the build script fails
 export async function GET() {
     try {
+        // Force library engine type for Vercel
+        process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
+
         // First check if the NextAuth tables already exist
         const tableCheck = await checkTables();
 
@@ -14,6 +22,17 @@ export async function GET() {
                 message: 'All required tables already exist',
                 tables: tableCheck
             });
+        }
+
+        // Check for User/users table name casing issues
+        // Try both "User" and "users" casing
+        if (!tableCheck.hasUsers) {
+            const caseCheckResult: any = await prisma.$queryRaw`
+                SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'User') as "hasUserCapital"
+            `;
+            if (caseCheckResult[0]?.hasUserCapital) {
+                console.log('Found User table with capital letter - will adjust foreign keys');
+            }
         }
 
         // If tables don't exist, we'll need to create them with raw SQL
@@ -60,13 +79,15 @@ export async function GET() {
             );
         `;
 
-        // Add foreign key constraints
+        // Add foreign key constraints - dynamically choose user table name
+        const userTableName = tableCheck.hasUsers ? 'users' : 'User';
+
         const addForeignKeys = `
             ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" 
-            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+            FOREIGN KEY ("userId") REFERENCES "${userTableName}"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
             ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" 
-            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+            FOREIGN KEY ("userId") REFERENCES "${userTableName}"("id") ON DELETE CASCADE ON UPDATE CASCADE;
         `;
 
         // Execute the SQL statements
@@ -74,7 +95,8 @@ export async function GET() {
             accounts: !tableCheck.hasAccounts,
             sessions: !tableCheck.hasSessions,
             verificationTokens: !tableCheck.hasVerificationTokens,
-            foreignKeys: true
+            foreignKeys: true,
+            userTableUsed: userTableName
         };
 
         if (!tableCheck.hasAccounts) {

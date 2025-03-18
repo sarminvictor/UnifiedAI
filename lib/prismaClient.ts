@@ -6,13 +6,17 @@ import { PrismaClient } from '@prisma/client';
 // Learn more:
 // https://pris.ly/d/help/next-js-best-practices
 
+// Force the correct engine type for Vercel
+if (process.env.NODE_ENV === 'production') {
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library';
+}
+
 // Define the global type for Prisma
 const globalForPrisma = global as unknown as {
     prisma: PrismaClient | undefined;
 };
 
 // Create a new Prisma client instance
-// Note: Engine type is handled via environment variables in vercel.json
 const prisma =
     globalForPrisma.prisma ||
     new PrismaClient();

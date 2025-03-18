@@ -17,21 +17,28 @@ export async function GET() {
             }, { status: 500 });
         }
 
-        // Create a direct PostgreSQL connection
+        console.log('Connecting to database...');
+
+        // Create a direct PostgreSQL connection with SSL disabled for self-signed certificates
         const pool = new Pool({
             connectionString: databaseUrl,
-            ssl: databaseUrl.includes('.supabase.') ? {
+            // Always set rejectUnauthorized to false for Supabase and other hosted PostgreSQL
+            ssl: {
                 rejectUnauthorized: false
-            } : undefined
+            }
         });
 
         // Function to safely run queries
         const runQuery = async (query: string, description: string) => {
             try {
+                console.log(`Running query: ${description}`);
                 const result = await pool.query(query);
+                console.log(`Query successful: ${description}`);
                 return { success: true, description, result };
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                console.error(`Query error (${description}):`, errorMsg);
+
                 // Only consider it a real error if it's not about the object already existing
                 const isAlreadyExistsError = errorMsg.includes('already exists');
                 return {
@@ -43,17 +50,26 @@ export async function GET() {
             }
         };
 
+        // Test connection
+        console.log('Testing connection...');
+        const connectionTest = await pool.query('SELECT 1 as connected');
+        console.log('Connection test result:', connectionTest.rows[0]);
+
         // Check what tables already exist
+        console.log('Checking existing tables...');
         const tableResult = await pool.query(`
             SELECT tablename FROM pg_tables WHERE schemaname = 'public'
         `);
         const existingTables = tableResult.rows.map(row => row.tablename);
+        console.log('Existing tables:', existingTables);
 
         // Determine user table name based on what exists
         const userTableName = existingTables.includes('users') ? 'users'
             : existingTables.includes('user') ? 'user'
                 : existingTables.includes('User') ? 'User'
                     : 'users';
+
+        console.log(`Using user table name: ${userTableName}`);
 
         // Create NextAuth tables if they don't exist
         const results = [];
@@ -102,6 +118,7 @@ export async function GET() {
 
         // Add foreign keys (only if the user table exists)
         if (existingTables.includes(userTableName)) {
+            console.log(`Adding foreign keys to existing ${userTableName} table`);
             results.push(await runQuery(`
                 ALTER TABLE "accounts" DROP CONSTRAINT IF EXISTS "accounts_userId_fkey";
                 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" 
@@ -115,6 +132,7 @@ export async function GET() {
             `, 'Add foreign key to sessions table'));
         } else {
             // Create a basic users table if none exists
+            console.log('Creating new users table');
             results.push(await runQuery(`
                 CREATE TABLE IF NOT EXISTS "users" (
                     "id" TEXT NOT NULL,
@@ -143,7 +161,9 @@ export async function GET() {
         }
 
         // Close the database connection
+        console.log('Closing connection pool...');
         await pool.end();
+        console.log('Connection pool closed');
 
         // Return results
         return NextResponse.json({
@@ -157,7 +177,8 @@ export async function GET() {
         console.error('Error creating NextAuth tables:', error);
         return NextResponse.json({
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : null) : null
         }, { status: 500 });
     }
 } 

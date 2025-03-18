@@ -29,6 +29,20 @@ if (isPoolerUrl) {
     console.log('Using direct connection URL (not a pooler URL)');
 }
 
+// Add PgBouncer parameters to avoid prepared statement issues
+if (dbUrl) {
+    if (!dbUrl.includes('?')) {
+        dbUrl += '?';
+    } else if (!dbUrl.endsWith('&')) {
+        dbUrl += '&';
+    }
+
+    // Add parameters that help with connection pooling
+    dbUrl += 'schema=public&connection_limit=1&pool_timeout=0&application_name=prisma_migrate&sslmode=require';
+
+    console.log('Added connection parameters for reliability');
+}
+
 // Create a temporary .env.migrate file with the direct connection
 fs.writeFileSync(
     '.env.migrate',

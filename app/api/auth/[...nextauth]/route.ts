@@ -39,14 +39,6 @@ async function checkTablesExist() {
   }
 }
 
-// Initialize table check in the background
-checkTablesExist().catch(console.error);
-
-// Verify Prisma client
-if (!prisma || !prisma.user) {
-  console.error("[NextAuth] CRITICAL: Invalid Prisma client or missing user model");
-}
-
 // Log database URL type
 console.log('[NextAuth] DATABASE_URL type:',
   process.env.DATABASE_URL?.includes('pooler') ? 'Pooler URL' : 'Direct URL');
@@ -81,7 +73,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
   },
-  debug: true,
+  debug: process.env.NODE_ENV === 'development',
   logger: {
     error(code, metadata) {
       console.error(`[next-auth][error][${code}]`, metadata);
@@ -94,6 +86,11 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
+
+// Initialize table check once
+checkTablesExist().catch(error => {
+  console.error("[NextAuth] Table check failed:", error);
+});
 
 const handler = NextAuth(authOptions);
 

@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { createClient } from '@/utils/supabase/middleware';
 
 async function validatePlan(planId: string) {
   // Validate plan existence and status
   const response = await fetch(`${process.env.NEXTAUTH_URL}/api/subscriptions/plans`);
   const { plans } = await response.json();
-  return plans.some(plan => plan.plan_id === planId);
+  return plans.some((plan: { plan_id: string }) => plan.plan_id === planId);
 }
 
 export async function middleware(request: NextRequest) {
@@ -27,7 +28,7 @@ export async function middleware(request: NextRequest) {
     // Validate plan ID for subscription operations
     const url = new URL(request.url);
     const planId = url.searchParams.get('planId');
-    
+
     if (planId && !(await validatePlan(planId))) {
       return NextResponse.json({ error: "Invalid plan selected" }, { status: 404 });
     }
@@ -52,12 +53,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/signin', request.url));
   }
 
-  return NextResponse.next();
+  // Integrate Supabase auth session refresh
+  try {
+    const clientResponse = createClient(request);
+    await clientResponse.supabase.auth.getSession();
+    return clientResponse.response;
+  } catch (error) {
+    console.error('Supabase session refresh error:', error);
+    return NextResponse.next();
+  }
 }
 
+// Apply middleware to all routes that should be protected or need session refresh
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-    '/api/subscriptions/:path*'
+    // Refresh session for all routes except for specific excluded paths
+    '/((?!_next/static|_next/image|favicon.ico|api/webhook|.well-known).*)',
   ],
 };

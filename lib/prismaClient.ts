@@ -43,10 +43,24 @@ function createPrismaClient() {
     console.log("[PRISMA] Creating new PrismaClient instance");
 
     try {
+        // Modify the connection string for better pooler compatibility
+        let dbUrl = poolerUrl || process.env.DATABASE_URL || '';
+
+        // Add parameters to prevent prepared statement name collisions
+        if (dbUrl && dbUrl.includes("pooler.supabase.com:6543")) {
+            // Add parameters for pgBouncer compatibility
+            if (!dbUrl.includes("?")) {
+                dbUrl += "?";
+            } else {
+                dbUrl += "&";
+            }
+            dbUrl += "pgbouncer=true&connection_limit=1&pool_timeout=10";
+        }
+
         const client = new PrismaClient({
             datasources: {
                 db: {
-                    url: poolerUrl || process.env.DATABASE_URL,
+                    url: dbUrl,
                 },
             },
             log: process.env.NODE_ENV === "production"

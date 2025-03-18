@@ -26,8 +26,6 @@ if (process.env.NODE_ENV === 'production') {
                 url: poolerUrl || process.env.DATABASE_URL,
             },
         },
-        // For serverless, reduce connection timeout
-        connectionTimeout: 20000,
         // Disable logging in production
         log: [],
     });

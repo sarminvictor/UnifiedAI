@@ -19,8 +19,6 @@ const authPrisma = new PrismaClient({
             url: poolerUrl || process.env.DATABASE_URL,
         },
     },
-    // Reduced connection timeout for serverless
-    connectionTimeout: 20000,
     // Disable query logging in production
     log: process.env.NODE_ENV === 'production' ? [] : ['error', 'warn'],
 });

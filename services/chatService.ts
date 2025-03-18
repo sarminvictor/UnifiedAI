@@ -73,21 +73,10 @@ export const chatService = {
         }
       });
 
-      // Get the current chat from the store to include chat history
-      const chatStore = (window as any).__CHAT_STORE__;
-      const currentChat = chatStore?.getState().chats.find((chat: any) => chat.chat_id === chatId);
-
-      // Include chat history in the request if available
-      const requestData = {
-        chatId,
-        ...data,
-        chat_history: currentChat?.chat_history || []
-      };
-
       const response = await fetch("/api/chat/saveChat", {  // Updated path
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify({ chatId, ...data }),
       });
 
       if (!response.ok) {

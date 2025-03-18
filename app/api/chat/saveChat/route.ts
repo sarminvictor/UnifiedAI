@@ -64,8 +64,7 @@ export async function POST(request: NextRequest) {
       initialSetup,
       brainstorm_mode,
       brainstorm_settings,
-      model,
-      chat_history
+      model
     } = await request.json();
 
     console.log('saveChat API received request:', {
@@ -74,27 +73,8 @@ export async function POST(request: NextRequest) {
       initialSetup,
       brainstorm_mode,
       brainstorm_settings: logSettings(brainstorm_settings),
-      model,
-      hasMessages: chat_history && chat_history.length > 0
+      model
     });
-
-    // Check if this is an empty chat (no messages)
-    // Only save chats that have messages
-    if (!chat_history || chat_history.length === 0) {
-      console.log('Skipping save for empty chat:', chatId);
-      return NextResponse.json({
-        success: true,
-        data: {
-          chat_id: chatId,
-          chat_title: chatTitle || "New Chat",
-          chat_history: [],
-          updated_at: new Date().toISOString(),
-          brainstorm_mode: brainstorm_mode || false,
-          brainstorm_settings: brainstorm_settings || DEFAULT_BRAINSTORM_SETTINGS
-        },
-        message: 'Empty chat not saved to database'
-      });
-    }
 
     // If it's an initial setup without a message, return without creating
     if (initialSetup === false) {

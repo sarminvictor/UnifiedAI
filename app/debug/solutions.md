@@ -6,26 +6,27 @@
    - "Prepared statement already exists" errors
    - SSL certificate verification issues
    - Problems with file system operations in serverless environments
+   - Connection pool conflicts
 
 2. **Missing NextAuth Database Tables**: 
    - User table is missing associations or doesn't exist
    - The Account, Session, and VerificationToken tables are missing
 
-## Solutions Implemented
+## New Solutions Implemented
 
-We've created multiple approaches to fix these issues:
+We've created multiple approaches to fix these issues, with new solutions added after earlier attempts:
 
-### 1. PostgreSQL Endpoint
+### 1. PostgreSQL Direct Connection (First Attempt)
 - **Path**: `/api/debug/create-nextauth-tables`
 - **Method**: Direct PostgreSQL connection with SSL disabled
-- **Issues**: Handles SSL but may still encounter prepared statement problems
+- **Issues**: May still encounter prepared statement problems
 
-### 2. Prisma Migration Approach
+### 2. Prisma Migration Approach (Second Attempt)
 - **Path**: `/api/debug/create-tables-prisma`
 - **Method**: Attempts to create a migration file and apply it
 - **Issues**: Fails in serverless environments due to file system restrictions
 
-### 3. Direct SQL Execution (NEW!)
+### 3. Direct SQL Execution (Third Attempt)
 - **Path**: `/api/debug/execute-sql`
 - **Method**: Fully in-memory SQL transaction with PostgreSQL
 - **Features**:
@@ -33,6 +34,64 @@ We've created multiple approaches to fix these issues:
   - Single transaction for all tables
   - Handles SSL certificate issues
   - Avoids Prisma completely
+
+### 4. Flush DB Connections (NEW!)
+- **Path**: `/api/debug/flush-connections`
+- **Method**: Examines, manages, and cleans up database connections
+- **Features**:
+  - Identifies active connections and prepared statements
+  - Deallocates prepared statements
+  - Cancels long-running queries
+  - Terminates idle connections
+  - Use this when getting "prepared statement already exists" errors
+
+### 5. Initialize Database (NEW!)
+- **Path**: `/api/debug/init-database`
+- **Method**: Uses Prisma client with raw queries for table creation
+- **Features**:
+  - Carefully checks which tables already exist before creating
+  - Creates tables one by one with error isolation
+  - Provides detailed reporting on status
+
+### 6. Prisma Direct SQL (NEW!)
+- **Path**: `/api/debug/prisma-direct`
+- **Method**: Creates a fully isolated Prisma client with special connection parameters
+- **Features**:
+  - Uses pgbouncer mode with strict connection limits
+  - Implements connection retry logic
+  - Executes all SQL in one large statement via $executeRaw
+  - Verifies the created tables
+
+## Recommended Approach Order
+
+When facing database issues, try these approaches in order:
+
+1. **First try**: "Flush DB Connections" followed by "Prisma Direct SQL"
+2. **If that fails**: "Initialize Database (Prisma)"
+3. **Last resort**: "Execute SQL Directly" approach
+
+## Technical Details
+
+### The "Prepared Statement Already Exists" Error
+
+This error occurs when:
+1. A connection to the database creates a prepared statement
+2. The connection is not properly closed
+3. Another connection tries to create a statement with the same name
+
+In Vercel serverless functions, connections can persist between cold starts, causing conflicts.
+
+### Connection Pooling in Serverless
+
+We've implemented several techniques to work around serverless connection issues:
+- Setting `?pgbouncer=true` in connection strings
+- Using minimal connection pools
+- Adding retry logic with timeouts
+- Adding explicit connection management
+
+## After Tables Are Created
+
+Once the tables are successfully created, regular authentication should work without issue. The tables will be used by NextAuth's Prisma adapter without requiring further manual intervention.
 
 ## Recommended Next Steps
 

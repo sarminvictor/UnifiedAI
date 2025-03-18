@@ -90,6 +90,45 @@ export default function DebugPage() {
         }
     };
 
+    const initDatabase = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/debug/init-database');
+            const data = await response.json();
+            setResult(data);
+        } catch (error) {
+            setResult({ error: String(error) });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const flushConnections = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/debug/flush-connections');
+            const data = await response.json();
+            setResult(data);
+        } catch (error) {
+            setResult({ error: String(error) });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const prismaDirect = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/debug/prisma-direct');
+            const data = await response.json();
+            setResult(data);
+        } catch (error) {
+            setResult({ error: String(error) });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="p-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold mb-6">Diagnostic Information</h1>
@@ -151,6 +190,30 @@ export default function DebugPage() {
                     className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 disabled:opacity-50"
                 >
                     Drop & Recreate Tables
+                </button>
+
+                <button
+                    onClick={initDatabase}
+                    disabled={loading}
+                    className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
+                >
+                    Initialize Database (Prisma)
+                </button>
+
+                <button
+                    onClick={flushConnections}
+                    disabled={loading}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-50"
+                >
+                    Flush DB Connections
+                </button>
+
+                <button
+                    onClick={prismaDirect}
+                    disabled={loading}
+                    className="px-4 py-2 bg-pink-500 text-white rounded hover:bg-pink-600 disabled:opacity-50"
+                >
+                    Prisma Direct SQL
                 </button>
 
                 <button

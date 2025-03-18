@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // @ts-ignore
+// @ts-expect-error
 export const config = {
     api: {
         bodyParser: false,

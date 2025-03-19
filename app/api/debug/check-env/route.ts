@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     // Only return the existence of values, not the values themselves
     return NextResponse.json({

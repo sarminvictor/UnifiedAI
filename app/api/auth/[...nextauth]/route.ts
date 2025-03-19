@@ -1,6 +1,9 @@
 import NextAuth from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 // Export the NextAuth handler for both GET and POST methods
 const handler = NextAuth(authOptions);
 

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000 --hostname 0.0.0.0",
+    "dev": "next dev",
     "start-dev": "sh scripts/start-dev.sh",
-    "build": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build || NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-cache || NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-lint --no-mangling",
+    "build": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-lint",
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { SessionProvider, useSession } from 'next-auth/react';
 
-export default function AuthDebug() {
+// Separate the content that uses useSession into its own component
+function DebugContent() {
     const { data: session, status } = useSession();
     const [envVars, setEnvVars] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -67,12 +68,21 @@ export default function AuthDebug() {
 
             <div className="mt-4">
                 <button
-                    onClick={() => signIn('google')}
+                    onClick={() => window.location.href = '/api/auth/signin?callbackUrl=/'}
                     className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 >
                     Sign in with Google (Test)
                 </button>
             </div>
         </div>
+    );
+}
+
+// Wrap the page with SessionProvider to prevent errors during static rendering
+export default function AuthDebug() {
+    return (
+        <SessionProvider>
+            <DebugContent />
+        </SessionProvider>
     );
 } 

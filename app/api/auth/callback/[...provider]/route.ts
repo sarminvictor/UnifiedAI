@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redirect } from 'next/navigation';
 
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
+
 // This is a safeguard route to handle OAuth callbacks more explicitly
 // This ensures they are properly redirected to NextAuth
 export async function GET(

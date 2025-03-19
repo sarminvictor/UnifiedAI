@@ -16,10 +16,11 @@ async function validatePlan(planId: string) {
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request });
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth/');
-  const isProtectedRoute = !isAuthPage && request.nextUrl.pathname !== '/';
+  const isDebugPage = request.nextUrl.pathname === '/debug';
+  const isProtectedRoute = !isAuthPage && !isDebugPage && request.nextUrl.pathname !== '/';
 
-  // Allow requests to auth pages without token
-  if (isAuthPage) {
+  // Allow requests to auth pages or debug page without token
+  if (isAuthPage || isDebugPage) {
     return NextResponse.next();
   }
 
@@ -70,11 +71,16 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
+     * - api (API routes) except api/auth routes which need to be checked
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - api/debug (debug API routes)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/debug|_next/static|_next/image|favicon.ico).*)',
+    '/api/auth/:path*',
+    '/api/chat/:path*',
+    '/api/subscriptions/:path*',
+    '/api/webhook'
   ],
 };

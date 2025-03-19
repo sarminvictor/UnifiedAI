@@ -27,7 +27,13 @@ const nextConfig = {
         // Remove appDir as it's now default in Next.js 14
         optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai'],
         // Mark problem packages for client-side rendering only
-        serverComponentsExternalPackages: ['resend']
+        serverComponentsExternalPackages: [
+            'resend',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-slot',
+            '@radix-ui/react-separator'
+        ]
     },
     poweredByHeader: false,
 

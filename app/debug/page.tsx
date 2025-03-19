@@ -1,21 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PrismaClient } from '@prisma/client';
 import { getSession } from 'next-auth/react';
 
-// Define fallback components in case the UI components aren't available
-const FallbackCard = ({ children, className = '', ...props }: any) => (
+// Simple HTML-based components without dependencies
+const Card = ({ children, className = '', ...props }: any) => (
     <div className={`border rounded-lg shadow p-4 mb-4 ${className}`} {...props}>
         {children}
     </div>
 );
 
-const FallbackCardHeader = ({ children }: any) => <div className="mb-3">{children}</div>;
-const FallbackCardTitle = ({ children }: any) => <h3 className="text-xl font-bold">{children}</h3>;
-const FallbackCardDescription = ({ children }: any) => <p className="text-gray-500 text-sm">{children}</p>;
-const FallbackCardContent = ({ children }: any) => <div>{children}</div>;
-const FallbackBadge = ({ children, variant = '' }: any) => (
+const CardHeader = ({ children }: any) => <div className="mb-3">{children}</div>;
+const CardTitle = ({ children }: any) => <h3 className="text-xl font-bold">{children}</h3>;
+const CardDescription = ({ children }: any) => <p className="text-gray-500 text-sm">{children}</p>;
+const CardContent = ({ children }: any) => <div>{children}</div>;
+
+const Badge = ({ children, variant = '' }: any) => (
     <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold 
     ${variant === 'success' ? 'bg-green-100 text-green-800' :
             variant === 'destructive' ? 'bg-red-100 text-red-800' :
@@ -24,73 +24,40 @@ const FallbackBadge = ({ children, variant = '' }: any) => (
         {children}
     </span>
 );
-const FallbackButton = ({ children, onClick, disabled = false }: any) => (
+
+const Button = ({ children, onClick, disabled = false, className = '', variant = 'default' }: any) => (
     <button
         onClick={onClick}
         disabled={disabled}
-        className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded disabled:opacity-50">
+        className={`${className} py-2 px-4 rounded text-sm font-medium disabled:opacity-50
+      ${variant === 'outline' ? 'border border-gray-300 bg-white hover:bg-gray-50' :
+                'bg-gray-800 text-white hover:bg-gray-700'}`}>
         {children}
     </button>
 );
-const FallbackSeparator = () => <hr className="my-8" />;
 
-// Try to import UI components, use fallbacks if they don't exist
-let Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Separator;
-let Accordion, AccordionContent, AccordionItem, AccordionTrigger;
+const Separator = () => <hr className="my-8" />;
 
-try {
-    const cardModule = require('@/components/ui/card');
-    Card = cardModule.Card;
-    CardHeader = cardModule.CardHeader;
-    CardTitle = cardModule.CardTitle;
-    CardDescription = cardModule.CardDescription;
-    CardContent = cardModule.CardContent;
-} catch (e) {
-    console.warn('Card components not found, using fallbacks');
-    Card = FallbackCard;
-    CardHeader = FallbackCardHeader;
-    CardTitle = FallbackCardTitle;
-    CardDescription = FallbackCardDescription;
-    CardContent = FallbackCardContent;
-}
-
-try {
-    const badgeModule = require('@/components/ui/badge');
-    Badge = badgeModule.Badge;
-} catch (e) {
-    console.warn('Badge component not found, using fallback');
-    Badge = FallbackBadge;
-}
-
-try {
-    const buttonModule = require('@/components/ui/button');
-    Button = buttonModule.Button;
-} catch (e) {
-    console.warn('Button component not found, using fallback');
-    Button = FallbackButton;
-}
-
-try {
-    const separatorModule = require('@/components/ui/separator');
-    Separator = separatorModule.Separator;
-} catch (e) {
-    console.warn('Separator component not found, using fallback');
-    Separator = FallbackSeparator;
-}
-
-try {
-    const accordionModule = require('@/components/ui/accordion');
-    Accordion = accordionModule.Accordion;
-    AccordionContent = accordionModule.AccordionContent;
-    AccordionItem = accordionModule.AccordionItem;
-    AccordionTrigger = accordionModule.AccordionTrigger;
-} catch (e) {
-    console.warn('Accordion components not found, using div elements');
-    Accordion = ({ children, ...props }: any) => <div {...props}>{children}</div>;
-    AccordionItem = ({ children, ...props }: any) => <div {...props}>{children}</div>;
-    AccordionTrigger = ({ children, ...props }: any) => <div className="font-bold mb-2" {...props}>{children}</div>;
-    AccordionContent = ({ children, ...props }: any) => <div className="ml-4 mb-4" {...props}>{children}</div>;
-}
+// Simple Accordion implementation
+const Accordion = ({ children, type = 'single', ...props }: any) => <div {...props}>{children}</div>;
+const AccordionItem = ({ children, value, ...props }: any) => <div className="border-b" {...props}>{children}</div>;
+const AccordionTrigger = ({ children, ...props }: any) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="py-4">
+            <button
+                className="flex w-full justify-between font-medium"
+                onClick={() => setOpen(!open)}
+                {...props}
+            >
+                {children}
+                <span className={`transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+            {open && props.children}
+        </div>
+    );
+};
+const AccordionContent = ({ children, ...props }: any) => <div className="pb-4 pt-2 pl-4" {...props}>{children}</div>;
 
 interface SystemInfo {
     nextVersion: string;
@@ -312,23 +279,17 @@ export default function DebugPage() {
                                     <span className="font-medium">PostgreSQL Version:</span>
                                     <span>{info.database.version}</span>
                                 </div>
-                                <Accordion type="single" collapsible className="w-full">
-                                    <AccordionItem value="tables">
-                                        <AccordionTrigger>
-                                            Tables ({info.database.tables?.length || 0})
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                            <ul className="space-y-1 text-sm">
-                                                {info.database.tables?.map((table, i) => (
-                                                    <li key={i}>{table}</li>
-                                                ))}
-                                            </ul>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
+                                <div>
+                                    <div className="font-medium mb-2">Tables ({info.database.tables?.length || 0})</div>
+                                    <ul className="space-y-1 text-sm">
+                                        {info.database.tables?.map((table, i) => (
+                                            <li key={i}>{table}</li>
+                                        ))}
+                                    </ul>
+                                </div>
                             </div>
                         ) : info.database.status === 'error' ? (
-                            <div className="text-destructive">{info.database.error}</div>
+                            <div className="text-red-500">{info.database.error}</div>
                         ) : (
                             <div className="animate-pulse">Testing database connection...</div>
                         )}
@@ -390,7 +351,7 @@ export default function DebugPage() {
                 </Card>
             </div>
 
-            <Separator className="my-8" />
+            <Separator />
 
             {/* API Endpoints */}
             <div>
@@ -421,19 +382,15 @@ export default function DebugPage() {
                                             <span className="font-medium">Latency:</span>
                                             <span>{data.latency}ms</span>
                                         </div>
-                                        <Accordion type="single" collapsible className="w-full">
-                                            <AccordionItem value="response">
-                                                <AccordionTrigger>Response</AccordionTrigger>
-                                                <AccordionContent>
-                                                    <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40">
-                                                        {JSON.stringify(data.response, null, 2)}
-                                                    </pre>
-                                                </AccordionContent>
-                                            </AccordionItem>
-                                        </Accordion>
+                                        <div>
+                                            <div className="font-medium mb-2">Response</div>
+                                            <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40">
+                                                {JSON.stringify(data.response, null, 2)}
+                                            </pre>
+                                        </div>
                                     </div>
                                 ) : data.status === 'error' ? (
-                                    <div className="text-destructive">{data.error}</div>
+                                    <div className="text-red-500">{data.error}</div>
                                 ) : (
                                     <div className="animate-pulse">Testing endpoint...</div>
                                 )}
@@ -451,7 +408,7 @@ export default function DebugPage() {
                 </div>
             </div>
 
-            <Separator className="my-8" />
+            <Separator />
 
             {/* Environment Variables */}
             <div>

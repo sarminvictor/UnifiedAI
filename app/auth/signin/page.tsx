@@ -41,7 +41,10 @@ function SignInContent() {
 
   const handleGoogleSignIn = () => {
     setIsLoading(true);
-    signIn('google', { callbackUrl });
+    signIn('google', {
+      callbackUrl: '/',
+      redirect: true
+    });
   };
 
   return (

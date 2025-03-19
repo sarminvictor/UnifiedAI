@@ -129,16 +129,24 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async redirect({ url, baseUrl }) {
-      // Default to baseUrl if url is not provided
-      if (!url || url.startsWith(baseUrl)) {
-        return baseUrl + '/';
-      }
-      // If it's an absolute URL and starts with the base URL, allow it
-      if (url.startsWith('http') && url.startsWith(baseUrl)) {
+      // Allows relative callbacks and callbacks to same domain
+      if (!url) return baseUrl;
+
+      // Allow callbacks to same origin
+      const urlObj = new URL(url);
+      const baseUrlObj = new URL(baseUrl);
+
+      if (urlObj.origin === baseUrlObj.origin) {
         return url;
       }
-      // For relative URLs
-      return baseUrl + url;
+
+      // Don't allow callbacks to /api/auth paths - redirect to home instead
+      if (url.startsWith(`${baseUrl}/api/auth`)) {
+        return baseUrl;
+      }
+
+      // Default to returning to base URL
+      return baseUrl;
     },
   },
   debug: process.env.NODE_ENV === 'development',
@@ -149,3 +157,4 @@ export const authOptions: NextAuthOptions = {
     error: '/auth/error',
   },
 };
+

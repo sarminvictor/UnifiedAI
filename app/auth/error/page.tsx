@@ -7,14 +7,18 @@ import { Suspense } from 'react';
 function AuthErrorContent() {
     const searchParams = useSearchParams();
     const error = searchParams.get('error');
+    const callbackUrl = searchParams.get('callbackUrl') || '/';
+    const paramString = Array.from(searchParams.entries())
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\n');
 
     // Define friendly error messages for common NextAuth errors
     const getErrorMessage = (errorCode: string | null) => {
         switch (errorCode) {
             case 'Configuration':
-                return 'There is a problem with the server configuration. Please contact support.';
+                return 'There is a problem with the server configuration. This could be missing credentials for an OAuth provider or an incorrect Google Client ID/Secret.';
             case 'AccessDenied':
-                return 'You do not have permission to sign in.';
+                return 'You do not have permission to sign in. This could happen if you denied permissions during OAuth.';
             case 'Verification':
                 return 'The verification link is no longer valid. It may have expired or been used already.';
             case 'OAuthSignin':
@@ -47,12 +51,33 @@ function AuthErrorContent() {
                     <p className="mt-6 text-gray-600">
                         Error code: <code className="rounded bg-gray-100 px-2 py-1 font-mono text-sm">{error || 'unknown'}</code>
                     </p>
+
+                    <div className="mt-4 text-left">
+                        <h3 className="font-medium">Callback URL:</h3>
+                        <code className="block bg-gray-100 p-2 rounded mt-1 text-xs break-all">
+                            {callbackUrl}
+                        </code>
+                    </div>
+
+                    <div className="mt-4 text-left">
+                        <h3 className="font-medium">All Parameters:</h3>
+                        <pre className="bg-gray-100 p-2 rounded mt-1 text-xs overflow-auto">
+                            {paramString || 'No parameters'}
+                        </pre>
+                    </div>
+
                     <div className="mt-8 space-y-4">
                         <Link
                             href="/auth/signin"
                             className="block w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                         >
                             Try signing in again
+                        </Link>
+                        <Link
+                            href="/auth/debug"
+                            className="block w-full rounded-md border border-yellow-500 bg-white px-4 py-2 text-center text-sm font-medium text-yellow-700 hover:bg-yellow-50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                        >
+                            Debug Authentication
                         </Link>
                         <Link
                             href="/"

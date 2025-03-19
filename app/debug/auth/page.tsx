@@ -1,5 +1,5 @@
 import { SessionProvider } from '../../providers/SessionProvider';
-import AuthDebugClient from './client.js';
+import AuthDebugClient from './client';
 
 export const dynamic = 'force-dynamic';
 

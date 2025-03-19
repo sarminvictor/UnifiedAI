@@ -31,12 +31,22 @@ export default function SignUp() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Error parsing response:', jsonError);
+        setError('Server error: Invalid response format');
+        return;
+      }
 
       if (!response.ok) {
         setError(data.error || 'Something went wrong. Please try again.');
-      } else {
-        // Sign in the user after successful signup
+        return;
+      }
+
+      // Sign in the user after successful signup
+      try {
         const result = await signIn('credentials', {
           email,
           password,
@@ -49,6 +59,9 @@ export default function SignUp() {
         } else if (result?.ok) {
           router.push('/');
         }
+      } catch (signInError) {
+        console.error('Error during sign in after signup:', signInError);
+        setError('Account created but couldn\'t sign in automatically. Please try signing in.');
       }
     } catch (error) {
       console.error('Sign up error:', error);

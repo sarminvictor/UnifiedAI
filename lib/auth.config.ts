@@ -22,31 +22,36 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+          // Call the signin API instead of accessing Prisma directly
+          // Use absolute URL or relative URL based on environment
+          const baseUrl = process.env.NEXTAUTH_URL ||
+            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+          const response = await fetch(`${baseUrl}/api/auth/signin`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
           });
 
-          if (!user || !user.password) {
-            throw new Error('Invalid email or password');
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Invalid email or password');
           }
 
-          const isValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
-          if (!isValid) {
-            throw new Error('Invalid email or password');
+          const user = await response.json().catch(() => null);
+          if (!user) {
+            throw new Error('Invalid response from authentication server');
           }
 
-          return {
-            id: user.id.toString(),
-            email: user.email,
-            name: user.name || undefined,
-            credits_remaining: user.credits_remaining
-          };
+          return user;
         } catch (error) {
           console.error('Auth error:', error);
-          return null;
+          throw new Error(error instanceof Error ? error.message : 'Authentication failed');
         }
       },
     }),

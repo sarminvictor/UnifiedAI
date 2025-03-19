@@ -18,16 +18,26 @@ export default function SignIn() {
 
     try {
       const result = await signIn('credentials', {
-        email: email,
+        email: email.trim().toLowerCase(),
         password: password,
         redirect: false,
         callbackUrl: '/',
       });
 
-      if (result?.error) {
+      if (!result) {
+        setError('Authentication failed. The service might be unavailable.');
+        return;
+      }
+
+      if (result.error) {
         setError(result.error);
-      } else if (result?.ok) {
+        return;
+      }
+
+      if (result.ok) {
         router.push('/');
+      } else {
+        setError('Authentication failed. Please try again.');
       }
     } catch (error) {
       console.error('Sign in error:', error);

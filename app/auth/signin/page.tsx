@@ -1,26 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { PanelLeft } from 'lucide-react';
 
-export default function SignIn() {
-  const router = useRouter();
+// Separate component for handling the search params
+function SuccessMessage() {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     // Check for success=true in the URL
     const success = searchParams.get('success');
     if (success === 'true') {
-      setSuccessMessage('Account created successfully! Please sign in.');
+      setMessage('Account created successfully! Please sign in.');
     }
   }, [searchParams]);
+
+  if (!message) return null;
+
+  return (
+    <div className="mb-6 text-sm text-green-600 bg-green-50 p-3 rounded-md">
+      {message}
+    </div>
+  );
+}
+
+export default function SignIn() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const handleCredentialsSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,12 +100,10 @@ export default function SignIn() {
             <h1 className="ml-2 text-2xl font-semibold text-gray-900">UnifiedAI</h1>
           </div>
 
-          {/* Success message */}
-          {successMessage && (
-            <div className="mb-6 text-sm text-green-600 bg-green-50 p-3 rounded-md">
-              {successMessage}
-            </div>
-          )}
+          {/* Success message - wrapped in Suspense */}
+          <Suspense fallback={<div className="h-6"></div>}>
+            <SuccessMessage />
+          </Suspense>
 
           {/* Sign-in Form */}
           <form onSubmit={handleCredentialsSignIn} className="space-y-4">

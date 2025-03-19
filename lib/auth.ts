@@ -4,3 +4,5 @@ import { authOptions } from "@/lib/auth.config";
 export async function getServerSession() {
   return await getSession(authOptions);
 }
+
+// Export authOptions for direct import elsewhere

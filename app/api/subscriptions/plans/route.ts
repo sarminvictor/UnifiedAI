@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prismaClient";  // Use your existing prisma client
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth.config";
 import { getStripePriceId, PLAN_TO_STRIPE_PRODUCT } from "@/utils/subscriptions/stripe";
 
 // Mark this route as dynamic to avoid static generation errors

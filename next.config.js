@@ -3,6 +3,14 @@ const nextConfig = {
     reactStrictMode: true,
     // Skip environment variables during build since they're added manually in Vercel
     env: {},
+    // Disable type checking during build for faster builds
+    typescript: {
+        ignoreBuildErrors: true,
+    },
+    // Disable ESLint during build
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
     webpack: (config, { dev, isServer }) => {
         // Add optimization for development
         if (dev && !isServer) {

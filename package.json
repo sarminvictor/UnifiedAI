@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3000 --hostname 0.0.0.0",
     "start-dev": "sh scripts/start-dev.sh",
-    "build": "next build || exit 0",
+    "build": "NEXT_IGNORE_ERRORS=1 next build",
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",

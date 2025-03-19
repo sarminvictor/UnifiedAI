@@ -1,9 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-lint",
+  "buildCommand": "npm run build",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": ".next",
   "regions": ["iad1"],
   "builds": [
     {

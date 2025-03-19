@@ -11,12 +11,10 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const handleCredentialsSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
     try {
       const result = await signIn('credentials', {
@@ -34,20 +32,16 @@ export default function SignIn() {
     } catch (error) {
       console.error('Sign in error:', error);
       setError('Something went wrong. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    setIsLoading(true);
     try {
       await signIn('google', { callbackUrl: '/' });
     } catch (error) {
       console.error('Google sign-in error:', error);
       setError('Google sign-in failed.');
-      setIsLoading(false);
     }
   };
 
@@ -109,10 +103,9 @@ export default function SignIn() {
             )}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50"
+              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
             >
-              {isLoading ? 'Signing in...' : 'Sign In with Email'}
+              Sign In with Email
             </button>
           </form>
 
@@ -129,8 +122,7 @@ export default function SignIn() {
           {/* Google Sign-In Button */}
           <button
             onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285f4" />
@@ -144,22 +136,22 @@ export default function SignIn() {
           {/* Links */}
           <div className="mt-6 space-y-4 text-center">
             <div>
-              <Link
+              <a
                 href="/auth/forgot-password"
                 className="text-sm text-blue-600 hover:text-blue-500 transition-colors duration-200 cursor-pointer"
               >
                 Forgot Password?
-              </Link>
+              </a>
             </div>
             <div>
               <p className="text-sm text-gray-600">
                 Don't have an account?{' '}
-                <Link
+                <a
                   href="/auth/signup"
                   className="text-blue-600 hover:text-blue-500 transition-colors duration-200 cursor-pointer"
                 >
                   Sign up here
-                </Link>
+                </a>
               </p>
             </div>
           </div>

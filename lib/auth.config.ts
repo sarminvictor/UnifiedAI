@@ -6,19 +6,6 @@ import bcrypt from 'bcryptjs';
 import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { AdapterUser } from 'next-auth/adapters';
-import { getAllCallbackUrls } from '@/lib/runtime-config';
-
-// Create a list of all possible hostnames for correct OAuth redirects
-const validHosts = [
-  'unified-ai-lac.vercel.app',
-  'unified-ai-lac-git-main-sarminvictors-projects.vercel.app',
-  'unified-k9219h20m-sarminvictors-projects.vercel.app',
-  'localhost:3000'
-];
-
-// Get the actual environment variables with fallbacks
-const clientId = process.env.GOOGLE_CLIENT_ID || '';
-const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -64,15 +51,8 @@ export const authOptions: NextAuthOptions = {
       },
     }),
     GoogleProvider({
-      clientId,
-      clientSecret,
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code"
-        }
-      }
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     }),
   ],
   session: {
@@ -149,38 +129,16 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async redirect({ url, baseUrl }) {
-      // Log redirect information for debugging
-      console.log('NextAuth redirect:', { url, baseUrl });
-
-      // Handle empty URL case
-      if (!url) return baseUrl;
-
-      // Safety check for parsing URLs
-      try {
-        // Allow relative URLs
-        if (url.startsWith('/')) {
-          return `${baseUrl}${url}`;
-        }
-
-        // Allow callbacks to same origin
-        const urlObj = new URL(url);
-        const baseUrlObj = new URL(baseUrl);
-
-        if (urlObj.origin === baseUrlObj.origin) {
-          return url;
-        }
-
-        // Don't allow callbacks to /api/auth paths - redirect to home instead
-        if (url.startsWith(`${baseUrl}/api/auth`)) {
-          return baseUrl;
-        }
-      } catch (error) {
-        console.error('Error parsing URL in redirect callback:', error);
-        return baseUrl;
+      // Default to baseUrl if url is not provided
+      if (!url || url.startsWith(baseUrl)) {
+        return baseUrl + '/';
       }
-
-      // Default to returning to base URL
-      return baseUrl;
+      // If it's an absolute URL and starts with the base URL, allow it
+      if (url.startsWith('http') && url.startsWith(baseUrl)) {
+        return url;
+      }
+      // For relative URLs
+      return baseUrl + url;
     },
   },
   debug: process.env.NODE_ENV === 'development',
@@ -191,4 +149,3 @@ export const authOptions: NextAuthOptions = {
     error: '/auth/error',
   },
 };
-

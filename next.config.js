@@ -1,11 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    reactStrictMode: true,
-    logging: {
-        fetches: {
-            fullUrl: true,
-        },
-    },
+    reactStrictMode: false,
     // Skip environment variables during build since they're added manually in Vercel
     env: {},
     // Disable type checking during build for faster builds
@@ -21,7 +16,6 @@ const nextConfig = {
     // Disable image optimization during build
     images: {
         unoptimized: true,
-        domains: ['lh3.googleusercontent.com'],
     },
     webpack: (config, { dev, isServer }) => {
         // Add optimization for development
@@ -47,15 +41,9 @@ const nextConfig = {
             '@radix-ui/react-separator',
             '@geist-ui/core',
             'sonner'
-        ],
-        serverActions: {
-            allowedOrigins: ["localhost:3000", "unified-ai-lac.vercel.app"],
-        },
+        ]
     },
     poweredByHeader: false,
-
-    // Force all routes to be dynamic to avoid static generation errors
-    dynamicParams: true,
 
     async rewrites() {
         return [

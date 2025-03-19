@@ -8,29 +8,17 @@ import { PanelLeft } from 'lucide-react';
 
 export default function SignUp() {
   const router = useRouter();
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
-    // Validate passwords match
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      setIsLoading(false);
-      return;
-    }
-
-    // Validate password strength
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      setIsLoading(false);
+      setError('Passwords do not match');
       return;
     }
 
@@ -40,48 +28,41 @@ export default function SignUp() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-        }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create account');
-      }
+        setError(data.error || 'Something went wrong. Please try again.');
+      } else {
+        // Sign in the user after successful signup
+        const result = await signIn('credentials', {
+          email,
+          password,
+          redirect: false,
+          callbackUrl: '/',
+        });
 
-      // Auto sign in after successful signup
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError('Account created, but failed to sign in automatically.');
-        router.push('/auth/signin'); // Redirect to sign in page if auto-login fails
-      } else if (result?.ok) {
-        router.push('/'); // Redirect to dashboard on success
+        if (result?.error) {
+          setError(result.error);
+        } else if (result?.ok) {
+          router.push('/');
+        }
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sign up error:', error);
-      setError(error.message || 'Failed to create account. Please try again.');
-    } finally {
-      setIsLoading(false);
+      setError('Something went wrong. Please try again.');
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+  const handleGoogleSignUp = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     try {
       await signIn('google', { callbackUrl: '/' });
     } catch (error) {
-      console.error('Google sign-in error:', error);
-      setError('Google sign-in failed.');
-      setIsLoading(false);
+      console.error('Google sign-up error:', error);
+      setError('Google sign-up failed.');
     }
   };
 
@@ -94,8 +75,8 @@ export default function SignUp() {
             <PanelLeft className="w-8 h-8 text-gray-900" />
             <h1 className="ml-2 text-2xl font-semibold text-gray-900">UnifiedAI</h1>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Create an account</h2>
-          <p className="text-gray-600">Join UnifiedAI to start your AI-powered journey today.</p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Create your account</h2>
+          <p className="text-gray-600">Join us to start your AI journey today.</p>
         </div>
       </div>
 
@@ -110,19 +91,6 @@ export default function SignUp() {
 
           {/* Sign-up Form */}
           <form onSubmit={handleSignUp} className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
@@ -169,10 +137,9 @@ export default function SignUp() {
             )}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50"
+              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
             >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              Create Account
             </button>
           </form>
 
@@ -186,11 +153,10 @@ export default function SignUp() {
             </div>
           </div>
 
-          {/* Google Sign-In Button */}
+          {/* Google Sign-Up Button */}
           <button
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50"
+            onClick={handleGoogleSignUp}
+            className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285f4" />
@@ -202,16 +168,18 @@ export default function SignUp() {
           </button>
 
           {/* Links */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Already have an account?{' '}
-              <Link
-                href="/auth/signin"
-                className="text-blue-600 hover:text-blue-500 transition-colors duration-200 cursor-pointer"
-              >
-                Sign in here
-              </Link>
-            </p>
+          <div className="mt-6 space-y-4 text-center">
+            <div>
+              <p className="text-sm text-gray-600">
+                Already have an account?{' '}
+                <a
+                  href="/auth/signin"
+                  className="text-blue-600 hover:text-blue-500 transition-colors duration-200 cursor-pointer"
+                >
+                  Sign in here
+                </a>
+              </p>
+            </div>
           </div>
         </div>
       </div>

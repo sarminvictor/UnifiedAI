@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
+    // Skip environment variables during build since they're added manually in Vercel
+    env: {},
     webpack: (config, { dev, isServer }) => {
         // Add optimization for development
         if (dev && !isServer) {

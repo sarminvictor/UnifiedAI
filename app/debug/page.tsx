@@ -127,6 +127,29 @@ interface SystemInfo {
         fixes_applied?: string[];
         error?: string;
     };
+    nextAuthLogs?: {
+        status: 'success' | 'error' | 'loading';
+        logs?: string[];
+        errors?: string[];
+        recommendations?: string[];
+        diagnostics?: {
+            adapter?: { status: string };
+            authOptions?: { status: string };
+            environmentComplete?: boolean;
+        };
+        error?: string;
+    };
+    userSchema?: {
+        status: 'success' | 'error' | 'loading';
+        userTableSchema?: {
+            columns?: any[];
+            primaryKey?: string | null;
+            missingAuthColumns?: string[];
+            canRelateToAccount?: boolean;
+        };
+        recommendations?: string[];
+        error?: string;
+    };
 }
 
 export default function DebugPage() {
@@ -144,7 +167,9 @@ export default function DebugPage() {
             reset_password: { status: 'loading' },
         },
         prismaTest: { status: 'loading' },
-        nextAuthDiagnostics: { status: 'loading' }
+        nextAuthDiagnostics: { status: 'loading' },
+        nextAuthLogs: { status: 'loading' },
+        userSchema: { status: 'loading' }
     });
 
     const [showEnvVars, setShowEnvVars] = useState(false);
@@ -348,7 +373,7 @@ export default function DebugPage() {
         });
 
         try {
-            const response = await fetch('/api/debug/apply-migrations', {
+            const response = await fetch('/api/debug/direct-migration', {
                 method: 'POST'
             });
             const data = await response.json();
@@ -378,6 +403,86 @@ export default function DebugPage() {
                 error: error.message,
                 results: []
             });
+        }
+    };
+
+    const checkNextAuthLogs = async () => {
+        setInfo(prev => ({
+            ...prev,
+            nextAuthLogs: { status: 'loading' }
+        }));
+
+        try {
+            const response = await fetch('/api/debug/nextauth-logs');
+            const data = await response.json();
+
+            if (data.error) {
+                setInfo(prev => ({
+                    ...prev,
+                    nextAuthLogs: {
+                        status: 'error',
+                        error: data.error
+                    }
+                }));
+            } else {
+                setInfo(prev => ({
+                    ...prev,
+                    nextAuthLogs: {
+                        status: 'success',
+                        logs: data.logs,
+                        errors: data.errors,
+                        recommendations: data.recommendations,
+                        diagnostics: data.diagnostics
+                    }
+                }));
+            }
+        } catch (error: any) {
+            setInfo(prev => ({
+                ...prev,
+                nextAuthLogs: {
+                    status: 'error',
+                    error: error.message
+                }
+            }));
+        }
+    };
+
+    const checkUserSchema = async () => {
+        setInfo(prev => ({
+            ...prev,
+            userSchema: { status: 'loading' }
+        }));
+
+        try {
+            const response = await fetch('/api/debug/check-user-schema');
+            const data = await response.json();
+
+            if (data.error) {
+                setInfo(prev => ({
+                    ...prev,
+                    userSchema: {
+                        status: 'error',
+                        error: data.error
+                    }
+                }));
+            } else {
+                setInfo(prev => ({
+                    ...prev,
+                    userSchema: {
+                        status: 'success',
+                        userTableSchema: data.userTableSchema,
+                        recommendations: data.recommendations
+                    }
+                }));
+            }
+        } catch (error: any) {
+            setInfo(prev => ({
+                ...prev,
+                userSchema: {
+                    status: 'error',
+                    error: error.message
+                }
+            }));
         }
     };
 
@@ -715,7 +820,7 @@ export default function DebugPage() {
                                 <div className="mt-6 border-t pt-4">
                                     <div className="font-medium mb-2">Apply Missing Table Migrations</div>
                                     <p className="text-sm text-gray-500 mb-3">
-                                        Create the required NextAuth tables in your database
+                                        Create the required NextAuth tables directly in your database
                                     </p>
 
                                     {migrationStatus.error && (
@@ -746,7 +851,7 @@ export default function DebugPage() {
                                         variant="outline"
                                         disabled={migrationStatus.loading}
                                     >
-                                        {migrationStatus.loading ? 'Applying Migrations...' : 'Apply NextAuth Migrations'}
+                                        {migrationStatus.loading ? 'Applying Migrations...' : 'Apply NextAuth Tables Directly'}
                                     </Button>
                                 </div>
                             ) : null}
@@ -766,6 +871,192 @@ export default function DebugPage() {
                     </Button>
                 </CardContent>
             </Card>
+
+            {/* NextAuth Detailed Diagnostics */}
+            <div>
+                <h2 className="text-2xl font-bold mb-4">NextAuth Health Checks</h2>
+                <div className="space-y-6">
+
+                    {/* User Schema Check */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>User Schema Compatibility</CardTitle>
+                                <Badge
+                                    variant={
+                                        info.userSchema?.status === 'success'
+                                            ? (info.userSchema.userTableSchema?.canRelateToAccount ? 'success' : 'destructive')
+                                            : info.userSchema?.status === 'error'
+                                                ? 'destructive'
+                                                : 'outline'
+                                    }
+                                >
+                                    {info.userSchema?.status === 'success'
+                                        ? (info.userSchema.userTableSchema?.canRelateToAccount ? 'Compatible' : 'Incompatible')
+                                        : info.userSchema?.status || 'Not Checked'}
+                                </Badge>
+                            </div>
+                            <CardDescription>Check if your User table is compatible with NextAuth</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {info.userSchema?.status === 'success' ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="font-medium mb-2">User Table Schema:</div>
+                                        <div className="pl-4 space-y-2 text-sm">
+                                            <div>Primary Key: {info.userSchema.userTableSchema?.primaryKey || 'Not found'}</div>
+
+                                            {info.userSchema.userTableSchema?.missingAuthColumns?.length ? (
+                                                <div className="text-amber-600">
+                                                    Missing Columns: {info.userSchema.userTableSchema?.missingAuthColumns.join(', ')}
+                                                </div>
+                                            ) : (
+                                                <div className="text-green-500">All expected columns present</div>
+                                            )}
+
+                                            <div>
+                                                User-Account Relation:
+                                                {info.userSchema.userTableSchema?.canRelateToAccount
+                                                    ? <span className="text-green-500"> Compatible</span>
+                                                    : <span className="text-red-500"> Incompatible</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {info.userSchema.recommendations?.length ? (
+                                        <div>
+                                            <div className="font-medium mb-2">Recommendations:</div>
+                                            <ul className="list-disc pl-5 text-sm space-y-1">
+                                                {info.userSchema.recommendations.map((recommendation, idx) => (
+                                                    <li key={idx} className="text-amber-600">{recommendation}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ) : info.userSchema?.status === 'error' ? (
+                                <div className="text-red-500">{info.userSchema.error}</div>
+                            ) : (
+                                <div className="animate-pulse">Click the button to check User schema...</div>
+                            )}
+                            <Button
+                                onClick={checkUserSchema}
+                                className="w-full mt-4"
+                                variant="outline"
+                                disabled={info.userSchema?.status === 'loading'}
+                            >
+                                Check User Schema
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    {/* NextAuth Logs */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>NextAuth Logs & Diagnostics</CardTitle>
+                                <Badge
+                                    variant={
+                                        info.nextAuthLogs?.status === 'success'
+                                            ? (info.nextAuthLogs.errors?.length ? 'destructive' : 'success')
+                                            : info.nextAuthLogs?.status === 'error'
+                                                ? 'destructive'
+                                                : 'outline'
+                                    }
+                                >
+                                    {info.nextAuthLogs?.status === 'success'
+                                        ? (info.nextAuthLogs.errors?.length ? 'Issues Found' : 'All Good')
+                                        : info.nextAuthLogs?.status || 'Not Checked'}
+                                </Badge>
+                            </div>
+                            <CardDescription>Detailed logs and checks for NextAuth.js</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {info.nextAuthLogs?.status === 'success' ? (
+                                <div className="space-y-4">
+                                    {/* Diagnostics Summary */}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="font-medium">Adapter:</div>
+                                        <div className="col-span-2">
+                                            <Badge
+                                                variant={info.nextAuthLogs.diagnostics?.adapter?.status === 'success' ? 'success' : 'destructive'}
+                                            >
+                                                {info.nextAuthLogs.diagnostics?.adapter?.status === 'success' ? 'OK' : 'Error'}
+                                            </Badge>
+                                        </div>
+
+                                        <div className="font-medium">Auth Config:</div>
+                                        <div className="col-span-2">
+                                            <Badge
+                                                variant={info.nextAuthLogs.diagnostics?.authOptions?.status === 'success' ? 'success' : 'destructive'}
+                                            >
+                                                {info.nextAuthLogs.diagnostics?.authOptions?.status === 'success' ? 'OK' : 'Error'}
+                                            </Badge>
+                                        </div>
+
+                                        <div className="font-medium">Environment:</div>
+                                        <div className="col-span-2">
+                                            <Badge
+                                                variant={info.nextAuthLogs.diagnostics?.environmentComplete ? 'success' : 'destructive'}
+                                            >
+                                                {info.nextAuthLogs.diagnostics?.environmentComplete ? 'Complete' : 'Missing Variables'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    {/* Logs */}
+                                    <div>
+                                        <div className="font-medium mb-2">Logs:</div>
+                                        <div className="bg-gray-50 p-3 rounded text-sm font-mono text-gray-800 max-h-60 overflow-y-auto">
+                                            {info.nextAuthLogs.logs?.map((log, idx) => (
+                                                <div key={idx} className={log.startsWith('✗') ? 'text-red-500' : log.startsWith('✓') ? 'text-green-500' : ''}>
+                                                    {log}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Errors */}
+                                    {info.nextAuthLogs.errors?.length ? (
+                                        <div>
+                                            <div className="font-medium mb-2">Errors:</div>
+                                            <ul className="list-disc pl-5 text-sm space-y-1">
+                                                {info.nextAuthLogs.errors.map((error, idx) => (
+                                                    <li key={idx} className="text-red-500">{error}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Recommendations */}
+                                    {info.nextAuthLogs.recommendations?.length ? (
+                                        <div>
+                                            <div className="font-medium mb-2">Recommendations:</div>
+                                            <ul className="list-disc pl-5 text-sm space-y-1">
+                                                {info.nextAuthLogs.recommendations.map((recommendation, idx) => (
+                                                    <li key={idx} className="text-amber-600">{recommendation}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ) : info.nextAuthLogs?.status === 'error' ? (
+                                <div className="text-red-500">{info.nextAuthLogs.error}</div>
+                            ) : (
+                                <div className="animate-pulse">Click the button to get NextAuth logs...</div>
+                            )}
+                            <Button
+                                onClick={checkNextAuthLogs}
+                                className="w-full mt-4"
+                                variant="outline"
+                                disabled={info.nextAuthLogs?.status === 'loading'}
+                            >
+                                Check NextAuth Logs
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
 
             <Separator />
 

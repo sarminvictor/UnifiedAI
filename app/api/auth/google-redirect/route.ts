@@ -1,41 +1,44 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getBaseUrl } from '@/lib/runtime-config';
 
 // This route provides a direct redirect to Google OAuth
 // that handles domain mismatches between preview and production URLs
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     try {
         const url = new URL(request.url);
         const callbackUrl = url.searchParams.get('callbackUrl') || '/';
 
-        // Get the current hostname
-        const currentHost = url.hostname;
-        console.log('Current host for Google redirect:', currentHost);
+        // Get host information from multiple sources for reliability
+        const host = request.headers.get('host') || '';
+        const forwardedHost = request.headers.get('x-forwarded-host') || '';
+        const referer = request.headers.get('referer') || '';
 
-        // Determine if we're on the production domain or preview domain
-        const isPrimaryDomain = currentHost === 'unified-ai-lac.vercel.app';
+        console.log('Google redirect - Request details:');
+        console.log('  URL:', request.url);
+        console.log('  Host:', host);
+        console.log('  X-Forwarded-Host:', forwardedHost);
+        console.log('  Referer:', referer);
+        console.log('  Headers:', JSON.stringify(Object.fromEntries(request.headers)));
 
-        // Ensure NEXTAUTH_URL is properly formed with the current domain
-        let baseUrl = isPrimaryDomain
-            ? 'https://unified-ai-lac.vercel.app'
-            : `https://${currentHost}`;
+        // Get current base URL using our helper
+        const baseUrl = getBaseUrl();
+        console.log('  Determined base URL:', baseUrl);
 
-        console.log(`Using base URL: ${baseUrl} for Google OAuth redirect`);
+        // Create direct URL to Google OAuth signin with the proper callback URL
+        const redirectUrl = new URL(`${baseUrl}/api/auth/signin/google`);
+        redirectUrl.searchParams.set('callbackUrl', callbackUrl);
 
-        // Create the Google OAuth signin URL
-        const googleAuthUrl = new URL('/api/auth/signin/google', baseUrl);
-        googleAuthUrl.searchParams.set('callbackUrl', callbackUrl);
-
-        // Log the full redirect URL
-        console.log('Redirecting to Google OAuth:', googleAuthUrl.toString());
+        // Log the final URL for debugging
+        console.log('  Redirecting to:', redirectUrl.toString());
 
         // Perform the redirect
-        return NextResponse.redirect(googleAuthUrl);
+        return NextResponse.redirect(redirectUrl);
     } catch (error) {
         console.error('Error in Google redirect:', error);
         return NextResponse.json(
-            { error: 'Failed to redirect to Google OAuth' },
+            { error: 'Failed to redirect to Google OAuth', details: String(error) },
             { status: 500 }
         );
     }

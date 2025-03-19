@@ -1,58 +1,58 @@
-import { NextResponse } from 'next/server';
-import { type NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prismaClient';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
-    const normalizedEmail = email.toLowerCase();
-    console.log('Attempting to create user:', normalizedEmail);
+    const body = await request.json();
+    const { name, email, password } = body;
 
-    // Check if user already exists (case-insensitive)
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        email: {
-          equals: normalizedEmail,
-          mode: 'insensitive'
-        }
-      }
-    });
-
-    if (existingUser) {
-      console.log('Existing user found:', existingUser);
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'User already exists' },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
 
-    // Hash the password
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'Email is already registered' },
+        { status: 409 }
+      );
+    }
+
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create the user with normalized email
+    // Create user
     const user = await prisma.user.create({
       data: {
-        email: normalizedEmail,
+        name: name || '',
+        email,
         password: hashedPassword,
-        credits_remaining: 0,
-        created_at: new Date(),
-        updated_at: new Date(),
+        credits_remaining: '50', // Default starting credits
       },
     });
 
-    console.log('User created successfully:', normalizedEmail);
-    return NextResponse.json({
-      id: user.id,
-      email: user.email,
-    }, { status: 200 });
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
 
-  } catch (error) {
-    console.error('Error creating user:', error);
     return NextResponse.json(
-      { error: 'Error creating account' },
+      {
+        message: 'User created successfully',
+        user: userWithoutPassword
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Signup error:', error);
+    return NextResponse.json(
+      { error: 'Failed to create user' },
       { status: 500 }
     );
   }

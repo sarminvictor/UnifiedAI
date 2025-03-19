@@ -1,56 +1,43 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { signOut } from 'next-auth/react';
+import { useEffect } from 'react';
+import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-
-function SignOutContent() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSignOut = async () => {
-    setIsLoading(true);
-    await signOut({ redirect: false });
-    router.push('/');
-  };
-
-  const handleCancel = () => {
-    router.back();
-  };
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">Sign Out</h1>
-          <p className="mt-2 text-gray-600">Are you sure you want to sign out?</p>
-
-          <div className="mt-8 space-y-4">
-            <button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              {isLoading ? 'Signing out...' : 'Sign out'}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={isLoading}
-              className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { PanelLeft } from 'lucide-react';
 
 export default function SignOut() {
+  const router = useRouter();
+  const { status } = useSession();
+
+  useEffect(() => {
+    // If already signed out, redirect to sign in page
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+      return;
+    }
+
+    // If authenticated, sign out
+    if (status === 'authenticated') {
+      const performSignOut = async () => {
+        await signOut({ redirect: false });
+        // Redirect after sign out
+        router.push('/auth/signin');
+      };
+
+      performSignOut();
+    }
+  }, [status, router]);
+
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
-      <SignOutContent />
-    </Suspense>
+    <div className="bg-white flex h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center p-4">
+        <div className="flex items-center mb-8">
+          <PanelLeft className="w-8 h-8 text-gray-900" />
+          <h1 className="ml-2 text-2xl font-semibold text-gray-900">UnifiedAI</h1>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Signing you out...</h2>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    </div>
   );
 }

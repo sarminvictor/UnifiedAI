@@ -7,6 +7,18 @@ import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { AdapterUser } from 'next-auth/adapters';
 
+// Create a list of all possible hostnames for correct OAuth redirects
+const validHosts = [
+  'unified-ai-lac.vercel.app',
+  'unified-ai-lac-git-main-sarminvictors-projects.vercel.app',
+  'unified-k9219h20m-sarminvictors-projects.vercel.app',
+  'localhost:3000'
+];
+
+// Get the actual environment variables with fallbacks
+const clientId = process.env.GOOGLE_CLIENT_ID || '';
+const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -51,8 +63,8 @@ export const authOptions: NextAuthOptions = {
       },
     }),
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId,
+      clientSecret,
       authorization: {
         params: {
           prompt: "consent",

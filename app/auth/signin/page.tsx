@@ -6,24 +6,48 @@ import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { PanelLeft } from 'lucide-react';
 
-// Separate component for handling the search params
-function SuccessMessage() {
+// Separate component for handling status messages
+function StatusMessage() {
   const searchParams = useSearchParams();
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    // Check for success=true in the URL
-    const success = searchParams.get('success');
-    if (success === 'true') {
-      setMessage('Account created successfully! Please sign in.');
+    // Check for registered=true in the URL
+    if (searchParams.get('registered') === 'true') {
+      setMessage({
+        text: 'Account created successfully! Please sign in.',
+        type: 'success'
+      });
+    }
+
+    // Check for error in the URL
+    const error = searchParams.get('error');
+    if (error) {
+      let errorMessage = 'Authentication failed. Please try again.';
+
+      // Map error codes to user-friendly messages
+      if (error === 'CredentialsSignin') {
+        errorMessage = 'Invalid email or password';
+      } else if (error === 'OAuthSignin' || error === 'OAuthCallback') {
+        errorMessage = 'Error with social login. Please try again.';
+      } else if (error === 'AccessDenied') {
+        errorMessage = 'Access denied. You may not have permission to sign in.';
+      } else if (error === 'Configuration') {
+        errorMessage = 'Authentication system configuration error.';
+      }
+
+      setMessage({
+        text: errorMessage,
+        type: 'error'
+      });
     }
   }, [searchParams]);
 
   if (!message) return null;
 
   return (
-    <div className="mb-6 text-sm text-green-600 bg-green-50 p-3 rounded-md">
-      {message}
+    <div className={`mb-6 text-sm ${message.type === 'success' ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'} p-3 rounded-md`}>
+      {message.text}
     </div>
   );
 }
@@ -33,48 +57,51 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCredentialsSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
     try {
+      // Sign in using the credentials provider
       const result = await signIn('credentials', {
         email: email.trim().toLowerCase(),
-        password: password,
+        password,
         redirect: false,
-        callbackUrl: '/',
+        callbackUrl: '/'
       });
 
       if (!result) {
         setError('Authentication failed. The service might be unavailable.');
+        setIsLoading(false);
         return;
       }
 
       if (result.error) {
         setError(result.error);
+        setIsLoading(false);
         return;
       }
 
-      if (result.ok) {
-        router.push('/');
+      if (result.ok && result.url) {
+        // Successful login, redirect to the callback URL
+        router.push(result.url);
       } else {
         setError('Authentication failed. Please try again.');
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('Sign in error:', error);
-      setError('Something went wrong. Please try again.');
+      setError('Authentication failed. Please try again later.');
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    try {
-      await signIn('google', { callbackUrl: '/' });
-    } catch (error) {
-      console.error('Google sign-in error:', error);
-      setError('Google sign-in failed.');
-    }
+  const handleGoogleSignIn = () => {
+    // Directly redirect to the Google auth endpoint
+    window.location.href = '/api/auth/signin/google?callbackUrl=/';
   };
 
   return (
@@ -100,9 +127,9 @@ export default function SignIn() {
             <h1 className="ml-2 text-2xl font-semibold text-gray-900">UnifiedAI</h1>
           </div>
 
-          {/* Success message - wrapped in Suspense */}
+          {/* Status message - wrapped in Suspense */}
           <Suspense fallback={<div className="h-6"></div>}>
-            <SuccessMessage />
+            <StatusMessage />
           </Suspense>
 
           {/* Sign-in Form */}
@@ -118,6 +145,7 @@ export default function SignIn() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -131,6 +159,7 @@ export default function SignIn() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
+                disabled={isLoading}
               />
             </div>
             {error && (
@@ -141,8 +170,9 @@ export default function SignIn() {
             <button
               type="submit"
               className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              disabled={isLoading}
             >
-              Sign In with Email
+              {isLoading ? 'Signing In...' : 'Sign In with Email'}
             </button>
           </form>
 
@@ -160,6 +190,7 @@ export default function SignIn() {
           <button
             onClick={handleGoogleSignIn}
             className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            disabled={isLoading}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285f4" />

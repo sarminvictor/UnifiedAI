@@ -1,166 +1,174 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import pkg from '@prisma/client/package.json';
+import bcrypt from 'bcryptjs';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-// Create a test-only instance of PrismaClient with logging
-const prisma = new PrismaClient({
+// Create a test-only Prisma Client with debug logging
+const prismaTest = new PrismaClient({
     log: ['query', 'error', 'warn'],
 });
 
 export async function GET() {
-    const timestamp = new Date().toISOString();
-    let connectionTest = false;
-    let adapterTest = { success: false, error: null as string | null };
-    let userTest = {
-        success: false,
-        error: null as string | null,
-        methods: {} as any
+    // Start timestamps for performance checking
+    const startTime = Date.now();
+    const timestamps: Record<string, number> = {};
+    const results: any = {
+        timestamp: new Date().toISOString(),
+        prismaVersion: process.env.npm_package_dependencies__prisma_client || 'unknown',
+        databaseType: 'postgresql',
+        connectionTest: { status: 'pending' },
+        adapterTest: { status: 'pending' },
+        userTests: { status: 'pending' },
+        schemaInfo: { status: 'pending' },
     };
-    let schemaVersion = '';
-    const prismaVersion = pkg.version;
 
     try {
-        // Basic connection test
-        const result = await prisma.$queryRaw`SELECT 1 as connected`;
-        connectionTest = Array.isArray(result) && result[0]?.connected === 1;
-
-        // Test creating the adapter
+        // Test 1: Basic connection using raw SQL
+        timestamps.connectionStart = Date.now();
         try {
-            const adapter = PrismaAdapter(prisma);
-            adapterTest.success = !!adapter;
+            const result = await prismaTest.$queryRaw`SELECT 1+1 as result`;
+            results.connectionTest = {
+                status: 'success',
+                duration: Date.now() - timestamps.connectionStart,
+                result,
+            };
         } catch (error: any) {
-            adapterTest.error = error.message;
+            results.connectionTest = {
+                status: 'error',
+                duration: Date.now() - timestamps.connectionStart,
+                message: error.message,
+                code: error.code,
+            };
         }
 
-        // Test user functions
+        // Test 2: Adapter Setup
+        timestamps.adapterStart = Date.now();
         try {
-            // Test counting users
-            const userCount = await prisma.user.count();
-            userTest.methods = { count: userCount };
+            const adapter = PrismaAdapter(prismaTest);
+            // Check if the adapter has the required methods
+            results.adapterTest = {
+                status: 'success',
+                duration: Date.now() - timestamps.adapterStart,
+                methods: Object.keys(adapter),
+            };
+        } catch (error: any) {
+            results.adapterTest = {
+                status: 'error',
+                duration: Date.now() - timestamps.adapterStart,
+                message: error.message,
+            };
+        }
 
-            // Test finding users
-            const firstUser = await prisma.user.findFirst();
-            userTest.methods.findFirst = !!firstUser;
+        // Test 3: User Tests
+        timestamps.userStart = Date.now();
+        results.userTests = {
+            tests: {},
+            duration: 0,
+            status: 'pending',
+        };
 
-            // Test adapter-style user lookup - using a simulated account lookup
-            try {
-                // Check if account table exists first
-                const tables = await prisma.$queryRaw`
-                    SELECT table_name 
-                    FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                        AND table_name = 'Account'
-                `;
+        try {
+            // 3.1: Count users
+            const userCount = await prismaTest.user.count();
+            results.userTests.tests.count = {
+                status: 'success',
+                count: userCount,
+            };
 
-                if (Array.isArray(tables) && tables.length > 0) {
-                    // Check the Account table structure to determine the correct column name
-                    const accountColumns = await prisma.$queryRaw`
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'Account'
-                    `;
+            // 3.2: Check user schema
+            if (userCount > 0) {
+                const latestUser = await prismaTest.user.findFirst({
+                    orderBy: { created_at: 'desc' },
+                    select: {
+                        id: true,
+                        email: true,
+                        name: true,
+                        credits_remaining: true,
+                        password: true,
+                        created_at: true,
+                    },
+                });
 
-                    const accountColumnNames = Array.isArray(accountColumns)
-                        ? accountColumns.map((col: any) => col.column_name.toLowerCase())
-                        : [];
-
-                    const hasUserId = accountColumnNames.includes('userid');
-                    const hasUser_Id = accountColumnNames.includes('user_id');
-
-                    // Log the column information for debugging
-                    console.log('Account columns found:', accountColumnNames);
-
-                    let userByAccountQuery;
-
-                    if (hasUserId) {
-                        // Query using the NextAuth default "userId" column name
-                        userByAccountQuery = await prisma.$queryRaw`
-                            SELECT u.* FROM "User" u
-                            JOIN "Account" a ON u.id = a."userId"
-                            WHERE a.provider = 'google'
-                            LIMIT 1
-                        `;
-                    } else if (hasUser_Id) {
-                        // Query using the "user_id" column name common in some schemas
-                        userByAccountQuery = await prisma.$queryRaw`
-                            SELECT u.* FROM "User" u
-                            JOIN "Account" a ON u.id = a.user_id
-                            WHERE a.provider = 'google'
-                            LIMIT 1
-                        `;
-                    } else {
-                        // No recognized column naming pattern found
-                        userByAccountQuery = null;
-                        console.log('No recognized user ID column found in Account table');
-                    }
-
-                    userTest.methods.userByAccount = {
-                        success: !!userByAccountQuery,
-                        user: userByAccountQuery && Array.isArray(userByAccountQuery) && userByAccountQuery.length > 0
-                            ? { id: userByAccountQuery[0].id, email: userByAccountQuery[0].email }
-                            : null,
-                        columnInfo: {
-                            hasUserId,
-                            hasUser_Id,
-                            columns: accountColumnNames
-                        }
-                    };
-                } else {
-                    userTest.methods.userByAccount = {
-                        success: false,
-                        error: "Account table doesn't exist in the database"
-                    };
-                }
-            } catch (error: any) {
-                userTest.methods.userByAccount = {
-                    success: false,
-                    error: error.message
+                results.userTests.tests.schema = {
+                    status: 'success',
+                    fields: Object.keys(latestUser || {}),
+                    hasPasswordField: Boolean(latestUser?.password),
+                    sampleTimestamp: latestUser?.created_at?.toISOString(),
+                };
+            } else {
+                results.userTests.tests.schema = {
+                    status: 'skipped',
+                    reason: 'No users found',
                 };
             }
 
-            userTest.success = true;
+            // 3.3: Test password hashing
+            const testPassword = 'TestPassword123!';
+            const hashedPassword = await bcrypt.hash(testPassword, 10);
+            const comparison = await bcrypt.compare(testPassword, hashedPassword);
+
+            results.userTests.tests.passwordHash = {
+                status: 'success',
+                hashWorking: comparison === true,
+                hashLength: hashedPassword.length,
+            };
+
+            results.userTests.status = 'success';
+            results.userTests.duration = Date.now() - timestamps.userStart;
         } catch (error: any) {
-            userTest.error = error.message;
+            results.userTests.status = 'error';
+            results.userTests.error = {
+                message: error.message,
+                code: error.code,
+            };
+            results.userTests.duration = Date.now() - timestamps.userStart;
         }
 
-        // Get database schema version from _prisma_migrations
+        // Test 4: Check schema version from _prisma_migrations
+        timestamps.schemaStart = Date.now();
         try {
-            const migrations = await prisma.$queryRaw`
-                SELECT migration_name 
-                FROM _prisma_migrations 
-                ORDER BY finished_at DESC 
-                LIMIT 1
-            `;
+            const migrations = await prismaTest.$queryRaw`
+        SELECT migration_name, finished_at 
+        FROM _prisma_migrations 
+        ORDER BY finished_at DESC 
+        LIMIT 5`;
 
-            if (Array.isArray(migrations) && migrations.length > 0) {
-                const latestMigration = migrations[0] as { migration_name: string };
-                schemaVersion = latestMigration.migration_name;
-            } else {
-                schemaVersion = 'No migrations found';
-            }
+            results.schemaInfo = {
+                status: 'success',
+                duration: Date.now() - timestamps.schemaStart,
+                latestMigrations: migrations,
+            };
         } catch (error: any) {
-            schemaVersion = `Error getting schema version: ${error.message}`;
+            results.schemaInfo = {
+                status: 'error',
+                duration: Date.now() - timestamps.schemaStart,
+                message: error.message,
+                code: error.code,
+            };
         }
 
-        return NextResponse.json({
-            timestamp,
-            connectionTest,
-            adapterTest,
-            userTest,
-            schemaVersion,
-            prismaVersion
-        });
+        // Add total duration
+        results.totalDuration = Date.now() - startTime;
 
+        // Include connection URL (with password redacted)
+        const dbUrl = process.env.DATABASE_URL || '';
+        if (dbUrl) {
+            const redactedUrl = dbUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+            results.databaseUrl = redactedUrl;
+        }
+
+        return NextResponse.json(results);
     } catch (error: any) {
-        return NextResponse.json({
-            timestamp,
-            error: error.message
-        }, { status: 500 });
+        return NextResponse.json(
+            {
+                error: error.message,
+                timestamp: new Date().toISOString(),
+                totalDuration: Date.now() - startTime,
+            },
+            { status: 500 }
+        );
     } finally {
-        await prisma.$disconnect();
+        // Close the Prisma client
+        await prismaTest.$disconnect();
     }
 } 

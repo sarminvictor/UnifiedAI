@@ -2,28 +2,52 @@
 
 import { useState, useEffect } from 'react';
 import { getSession } from 'next-auth/react';
+import Link from 'next/link';
+import { AlertTriangle, CheckCircle, XCircle, Database, Server, KeyRound, Cable } from 'lucide-react';
 
 // Simple HTML-based components without dependencies
-const Card = ({ children, className = '', ...props }: any) => (
-    <div className={`border rounded-lg shadow p-4 mb-4 ${className}`} {...props}>
+const Card = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+    <div className={`bg-white rounded-lg shadow border border-gray-200 ${className}`}>
         {children}
     </div>
 );
 
-const CardHeader = ({ children }: any) => <div className="mb-3">{children}</div>;
-const CardTitle = ({ children }: any) => <h3 className="text-xl font-bold">{children}</h3>;
-const CardDescription = ({ children }: any) => <p className="text-gray-500 text-sm">{children}</p>;
-const CardContent = ({ children }: any) => <div>{children}</div>;
-
-const Badge = ({ children, variant = '' }: any) => (
-    <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold 
-    ${variant === 'success' ? 'bg-green-100 text-green-800' :
-            variant === 'destructive' ? 'bg-red-100 text-red-800' :
-                variant === 'secondary' ? 'bg-gray-100 text-gray-800' :
-                    'bg-blue-100 text-blue-800'}`}>
+const CardHeader = ({ children }: { children: React.ReactNode }) => (
+    <div className="p-4 border-b border-gray-200">
         {children}
-    </span>
+    </div>
 );
+
+const CardTitle = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+    <h3 className={`text-lg font-medium ${className}`}>{children}</h3>
+);
+
+const CardDescription = ({ children }: { children: React.ReactNode }) => (
+    <p className="text-sm text-gray-500 mt-1">{children}</p>
+);
+
+const CardContent = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+    <div className={`p-4 ${className}`}>{children}</div>
+);
+
+const CardFooter = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+    <div className={`p-4 border-t border-gray-200 ${className}`}>{children}</div>
+);
+
+const Badge = ({ children, variant = 'default' }: { children: React.ReactNode, variant?: string }) => {
+    const variants: Record<string, string> = {
+        default: 'bg-gray-100 text-gray-800',
+        outline: 'bg-white text-gray-800 border border-gray-300',
+        success: 'bg-green-100 text-green-800',
+        destructive: 'bg-red-100 text-red-800',
+    };
+
+    return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variants[variant] || variants.default}`}>
+            {children}
+        </span>
+    );
+};
 
 const Button = ({ children, onClick, disabled = false, className = '', variant = 'default' }: any) => (
     <button
@@ -538,742 +562,235 @@ export default function DebugPage() {
     };
 
     return (
-        <div className="container mx-auto py-10 space-y-8">
-            <h1 className="text-4xl font-bold">System Debug Dashboard</h1>
-            <p className="text-gray-500">
-                This page provides detailed diagnostic information about your application's connections and configuration.
-            </p>
+        <div className="container mx-auto p-6 max-w-5xl">
+            <h1 className="text-3xl font-bold mb-6">System Diagnostics</h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* System Information */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>System Information</CardTitle>
-                        <CardDescription>Basic information about the running system</CardDescription>
-                    </CardHeader>
-                    <CardContent>
+            {/* System Info Section */}
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Server size={20} />
+                        System Information
+                    </CardTitle>
+                    <CardDescription>
+                        Details about the current environment and system
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-2">
+                        <div className="flex justify-between">
+                            <span className="font-medium">Next.js Version:</span>
+                            <span>{info.nextVersion}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="font-medium">Node.js Version:</span>
+                            <span>{info.nodeVersion}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="font-medium">Environment:</span>
+                            <span>
+                                <Badge variant={info.environment === 'production' ? 'default' : 'outline'}>
+                                    {info.environment}
+                                </Badge>
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="font-medium">Build Time:</span>
+                            <span>{info.buildTime}</span>
+                        </div>
+                        {info.vercelRegion && (
+                            <div className="flex justify-between">
+                                <span className="font-medium">Vercel Region:</span>
+                                <span>{info.vercelRegion}</span>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Database Section */}
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Database size={20} />
+                        Database Connection
+                    </CardTitle>
+                    <CardDescription>
+                        Status of the PostgreSQL database connection
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {info.database.status === 'connected' ? (
                         <div className="space-y-2">
                             <div className="flex justify-between">
-                                <span className="font-medium">Next.js Version:</span>
-                                <span>{info.nextVersion}</span>
+                                <span className="font-medium">PostgreSQL Version:</span>
+                                <span>{info.database.version}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="font-medium">Node.js Version:</span>
-                                <span>{info.nodeVersion}</span>
+                            <div>
+                                <div className="font-medium mb-2">Tables ({info.database.tables?.length || 0})</div>
+                                <ul className="space-y-1 text-sm">
+                                    {info.database.tables?.map((table, i) => (
+                                        <li key={i}>{table}</li>
+                                    ))}
+                                </ul>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="font-medium">Environment:</span>
-                                <span>
-                                    <Badge variant={info.environment === 'production' ? 'default' : 'outline'}>
-                                        {info.environment}
-                                    </Badge>
-                                </span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="font-medium">Build Time:</span>
-                                <span>{info.buildTime}</span>
-                            </div>
-                            {info.vercelRegion && (
-                                <div className="flex justify-between">
-                                    <span className="font-medium">Vercel Region:</span>
-                                    <span>{info.vercelRegion}</span>
-                                </div>
-                            )}
                         </div>
-                    </CardContent>
-                </Card>
+                    ) : info.database.status === 'error' ? (
+                        <div className="text-red-500">{info.database.error}</div>
+                    ) : (
+                        <div className="animate-pulse">Testing database connection...</div>
+                    )}
+                    <Button
+                        onClick={testDatabase}
+                        className="w-full mt-4"
+                        variant="outline"
+                        disabled={info.database.status === 'loading'}
+                    >
+                        Test Database Connection
+                    </Button>
+                </CardContent>
+                <CardFooter>
+                    <Link href="/debug/prisma">
+                        <Button variant="outline">View Detailed Prisma Diagnostics</Button>
+                    </Link>
+                </CardFooter>
+            </Card>
 
-                {/* Database Status */}
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <CardTitle>Database Connection</CardTitle>
-                            <Badge
-                                variant={
-                                    info.database.status === 'connected'
-                                        ? 'success'
-                                        : info.database.status === 'error'
-                                            ? 'destructive'
-                                            : 'outline'
-                                }
-                            >
-                                {info.database.status}
-                            </Badge>
-                        </div>
-                        <CardDescription>Database connection status</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {info.database.status === 'connected' ? (
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="font-medium">PostgreSQL Version:</span>
-                                    <span>{info.database.version}</span>
-                                </div>
-                                <div>
-                                    <div className="font-medium mb-2">Tables ({info.database.tables?.length || 0})</div>
-                                    <ul className="space-y-1 text-sm">
-                                        {info.database.tables?.map((table, i) => (
-                                            <li key={i}>{table}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
-                        ) : info.database.status === 'error' ? (
-                            <div className="text-red-500">{info.database.error}</div>
-                        ) : (
-                            <div className="animate-pulse">Testing database connection...</div>
-                        )}
-                        <Button
-                            onClick={testDatabase}
-                            className="w-full mt-4"
-                            variant="outline"
-                            disabled={info.database.status === 'loading'}
-                        >
-                            Test Database Connection
-                        </Button>
-                    </CardContent>
-                </Card>
-
-                {/* Authentication Status */}
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <CardTitle>Authentication</CardTitle>
-                            <Badge
-                                variant={
-                                    info.auth.status === 'authenticated'
-                                        ? 'success'
-                                        : info.auth.status === 'unauthenticated'
-                                            ? 'secondary'
-                                            : 'outline'
-                                }
-                            >
-                                {info.auth.status}
-                            </Badge>
-                        </div>
-                        <CardDescription>NextAuth.js authentication status</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {info.auth.status === 'authenticated' ? (
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="font-medium">User:</span>
-                                    <span>{info.auth.session?.user?.email || 'Unknown'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="font-medium">Session Expires:</span>
-                                    <span>{info.auth.session?.expires ? new Date(info.auth.session.expires).toLocaleString() : 'Unknown'}</span>
-                                </div>
-                            </div>
-                        ) : info.auth.status === 'unauthenticated' ? (
-                            <div className="space-y-4">
-                                <div>No active session. Sign in to create the first account.</div>
-
-                                {/* Database tables status summary */}
-                                <div className="mt-2 border-t pt-2">
-                                    <div className="font-medium mb-1">Auth Readiness:</div>
-                                    <ul className="space-y-1 text-sm pl-2">
-                                        <li className={info.prismaTest?.connectionTest ? "text-green-500" : "text-red-500"}>
-                                            {info.prismaTest?.connectionTest ? "✓" : "✗"} Database Connection
-                                        </li>
-
-                                        <li className={info.nextAuthDiagnostics?.schema?.missing?.length === 0 ? "text-green-500" : "text-red-500"}>
-                                            {info.nextAuthDiagnostics?.schema?.missing?.length === 0 ? "✓" : "✗"} NextAuth Tables
-                                            {info.nextAuthDiagnostics?.schema?.missing && info.nextAuthDiagnostics.schema.missing.length > 0 &&
-                                                <span className="text-amber-600"> (Run 'Apply NextAuth Tables' in diagnostics)</span>}
-                                        </li>
-
-                                        <li className={!info.userSchema?.userTableSchema?.missingAuthColumns?.length ? "text-green-500" : "text-amber-600"}>
-                                            {!info.userSchema?.userTableSchema?.missingAuthColumns?.length ? "✓" : "⚠️"} User Schema Compatibility
-                                            {info.userSchema?.userTableSchema?.missingAuthColumns && info.userSchema.userTableSchema.missingAuthColumns.length > 0 &&
-                                                <span> (Add missing columns in User Schema section)</span>}
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <div className="mt-2 border-t pt-2 text-sm">
-                                    <strong>Next steps:</strong> Once all auth requirements are met, click 'Sign In' to
-                                    create the first user and establish the auth tables properly.
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="animate-pulse">Checking authentication...</div>
-                        )}
-                        <Button
-                            onClick={() => window.location.href = '/api/auth/signin'}
-                            className="w-full mt-4"
-                            variant="outline"
-                        >
-                            Sign In
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Prisma Adapter Test */}
-            <Card>
+            {/* Authentication Section */}
+            <Card className="mb-8">
                 <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle>Prisma Adapter Test</CardTitle>
-                        <Badge
-                            variant={
-                                info.prismaTest?.status === 'success'
-                                    ? 'success'
-                                    : info.prismaTest?.status === 'error'
-                                        ? 'destructive'
-                                        : 'outline'
-                            }
-                        >
-                            {info.prismaTest?.status || 'Not Tested'}
-                        </Badge>
-                    </div>
-                    <CardDescription>Tests for Prisma client and NextAuth adapter</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <KeyRound size={20} />
+                        Authentication
+                    </CardTitle>
+                    <CardDescription>NextAuth.js authentication status</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {info.prismaTest?.status === 'success' ? (
+                    {info.auth.status === 'authenticated' ? (
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span className="font-medium">User:</span>
+                                <span>{info.auth.session?.user?.email || 'Unknown'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="font-medium">Session Expires:</span>
+                                <span>{info.auth.session?.expires ? new Date(info.auth.session.expires).toLocaleString() : 'Unknown'}</span>
+                            </div>
+                        </div>
+                    ) : info.auth.status === 'unauthenticated' ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="font-medium">Connection Test:</div>
-                                <div>{info.prismaTest.connectionTest ? '✅ Connected' : '❌ Failed'}</div>
+                            <div>No active session. Sign in to create the first account.</div>
 
-                                <div className="font-medium">Adapter Test:</div>
-                                <div>
-                                    {info.prismaTest.adapterTest?.success ?
-                                        '✅ Adapter Created' :
-                                        `❌ Error: ${info.prismaTest.adapterTest?.error}`}
-                                </div>
+                            {/* Database tables status summary */}
+                            <div className="mt-2 border-t pt-2">
+                                <div className="font-medium mb-1">Auth Readiness:</div>
+                                <ul className="space-y-1 text-sm pl-2">
+                                    <li className={info.prismaTest?.connectionTest ? "text-green-500" : "text-red-500"}>
+                                        {info.prismaTest?.connectionTest ? "✓" : "✗"} Database Connection
+                                    </li>
 
-                                <div className="font-medium">User Test:</div>
-                                <div>
-                                    {info.prismaTest.userTest?.success ?
-                                        '✅ User Table Accessible' :
-                                        `❌ Error: ${info.prismaTest.userTest?.error}`}
-                                </div>
+                                    <li className={info.nextAuthDiagnostics?.schema?.missing?.length === 0 ? "text-green-500" : "text-red-500"}>
+                                        {info.nextAuthDiagnostics?.schema?.missing?.length === 0 ? "✓" : "✗"} NextAuth Tables
+                                        {info.nextAuthDiagnostics?.schema?.missing && info.nextAuthDiagnostics.schema.missing.length > 0 &&
+                                            <span className="text-amber-600"> (Run 'Apply NextAuth Tables' in diagnostics)</span>}
+                                    </li>
 
-                                <div className="font-medium">Prisma Version:</div>
-                                <div>{info.prismaTest.prismaVersion}</div>
-
-                                <div className="font-medium">Schema Version:</div>
-                                <div>{info.prismaTest.schemaVersion}</div>
+                                    <li className={!info.userSchema?.userTableSchema?.missingAuthColumns?.length ? "text-green-500" : "text-amber-600"}>
+                                        {!info.userSchema?.userTableSchema?.missingAuthColumns?.length ? "✓" : "⚠️"} User Schema Compatibility
+                                        {info.userSchema?.userTableSchema?.missingAuthColumns && info.userSchema.userTableSchema.missingAuthColumns.length > 0 &&
+                                            <span> (Add missing columns in User Schema section)</span>}
+                                    </li>
+                                </ul>
                             </div>
 
-                            {info.prismaTest.userTest?.methods && (
-                                <div>
-                                    <div className="font-medium mb-2">User Methods Test:</div>
-                                    <div className="pl-4 space-y-2 text-sm">
-                                        <div>User Count: {info.prismaTest.userTest.methods.count}</div>
-                                        <div>Find First: {info.prismaTest.userTest.methods.findFirst ? '✅ Working' : '❌ Failed'}</div>
-                                        <div>
-                                            User By Account: {
-                                                info.prismaTest.userTest.methods.userByAccount?.success ?
-                                                    '✅ Working' :
-                                                    info.prismaTest.userTest.methods.userByAccount?.error?.includes('prisma.account') ?
-                                                        '⚠️ Account table missing (expected for new setup)' :
-                                                        `❌ Error: ${info.prismaTest.userTest.methods.userByAccount?.error}`
+                            <div className="mt-2 border-t pt-2 text-sm">
+                                <strong>Next steps:</strong> Once all auth requirements are met, click 'Sign In' to
+                                create the first user and establish the auth tables properly.
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="animate-pulse">Checking authentication...</div>
+                    )}
+                    <Button
+                        onClick={() => window.location.href = '/api/auth/signin'}
+                        className="w-full mt-4"
+                        variant="outline"
+                    >
+                        Sign In
+                    </Button>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                    <Link href="/api/auth/signin">
+                        <Button variant="outline">Test Sign In</Button>
+                    </Link>
+                    <Link href="/debug/auth">
+                        <Button variant="outline">Authentication Diagnostics</Button>
+                    </Link>
+                    <Link href="/api/auth/signout">
+                        <Button variant="outline">Test Sign Out</Button>
+                    </Link>
+                </CardFooter>
+            </Card>
+
+            {/* API Endpoints Section */}
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>API Endpoints</CardTitle>
+                    <CardDescription>Test and view API endpoint responses</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {Object.entries(info.apis).map(([endpoint, data]) => (
+                            <Card key={endpoint}>
+                                <CardHeader>
+                                    <div className="flex justify-between items-center">
+                                        <CardTitle>{endpoint}</CardTitle>
+                                        <Badge
+                                            variant={
+                                                data.status === 'ok'
+                                                    ? 'success'
+                                                    : data.status === 'error'
+                                                        ? 'destructive'
+                                                        : 'outline'
                                             }
-                                        </div>
+                                        >
+                                            {data.status}
+                                        </Badge>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    ) : info.prismaTest?.status === 'error' ? (
-                        <div className="text-red-500">{info.prismaTest.error}</div>
-                    ) : (
-                        <div className="animate-pulse">Click the button to test Prisma adapter...</div>
-                    )}
-                    <Button
-                        onClick={testPrismaAdapter}
-                        className="w-full mt-4"
-                        variant="outline"
-                        disabled={info.prismaTest?.status === 'loading'}
-                    >
-                        Test Prisma Adapter
-                    </Button>
-                </CardContent>
-            </Card>
-
-            {/* NextAuth Diagnostics */}
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle>NextAuth Diagnostics</CardTitle>
-                        <Badge
-                            variant={
-                                info.nextAuthDiagnostics?.status === 'success'
-                                    ? 'success'
-                                    : info.nextAuthDiagnostics?.status === 'error'
-                                        ? 'destructive'
-                                        : 'outline'
-                            }
-                        >
-                            {info.nextAuthDiagnostics?.status || 'Not Tested'}
-                        </Badge>
-                    </div>
-                    <CardDescription>Diagnose and fix common NextAuth configuration issues</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {info.nextAuthDiagnostics?.status === 'success' ? (
-                        <div className="space-y-4">
-                            {/* Adapter Check */}
-                            <div>
-                                <div className="font-medium flex items-center mb-2">
-                                    <span>PrismaAdapter:</span>
-                                    <Badge
-                                        variant={info.nextAuthDiagnostics.adapter?.success ? 'success' : 'destructive'}
-                                        className="ml-2"
-                                    >
-                                        {info.nextAuthDiagnostics.adapter?.success ? 'OK' : 'Issue Detected'}
-                                    </Badge>
-                                </div>
-                                {info.nextAuthDiagnostics.adapter?.error ? (
-                                    <div className="text-red-500 text-sm">{info.nextAuthDiagnostics.adapter.error}</div>
-                                ) : (
-                                    <div className="text-sm pl-4">
-                                        <div>Available Methods: {info.nextAuthDiagnostics.adapter?.methods?.join(', ')}</div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Config Check */}
-                            <div>
-                                <div className="font-medium flex items-center mb-2">
-                                    <span>Auth Configuration:</span>
-                                    <Badge
-                                        variant={info.nextAuthDiagnostics.config?.success ? 'success' : 'destructive'}
-                                        className="ml-2"
-                                    >
-                                        {info.nextAuthDiagnostics.config?.success ? 'OK' : 'Issue Detected'}
-                                    </Badge>
-                                </div>
-                                {info.nextAuthDiagnostics.config?.error ? (
-                                    <div className="text-red-500 text-sm">{info.nextAuthDiagnostics.config.error}</div>
-                                ) : (
-                                    <div className="text-sm pl-4">
-                                        <div>Present: {info.nextAuthDiagnostics.config?.config?.present.join(', ')}</div>
-                                        {info.nextAuthDiagnostics.config?.config?.missing.length ? (
-                                            <div className="text-red-500">Missing: {info.nextAuthDiagnostics.config?.config?.missing.join(', ')}</div>
-                                        ) : null}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Schema Check */}
-                            <div>
-                                <div className="font-medium flex items-center mb-2">
-                                    <span>Database Schema:</span>
-                                    <Badge
-                                        variant={info.nextAuthDiagnostics.schema?.success ? 'success' : 'destructive'}
-                                        className="ml-2"
-                                    >
-                                        {info.nextAuthDiagnostics.schema?.success ? 'OK' : 'Issue Detected'}
-                                    </Badge>
-                                </div>
-                                {info.nextAuthDiagnostics.schema?.error ? (
-                                    <div className="text-red-500 text-sm">{info.nextAuthDiagnostics.schema.error}</div>
-                                ) : (
-                                    <div className="text-sm pl-4">
-                                        {info.nextAuthDiagnostics.schema?.missing?.length ? (
-                                            <div className="text-red-500">
-                                                Missing Tables: {info.nextAuthDiagnostics.schema?.missing.join(', ')}
+                                </CardHeader>
+                                <CardContent>
+                                    {data.status === 'ok' ? (
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                                <span className="font-medium">Latency:</span>
+                                                <span>{data.latency}ms</span>
                                             </div>
-                                        ) : (
-                                            <div>All required tables present</div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Fixes */}
-                            {info.nextAuthDiagnostics.fixes_applied?.length ? (
-                                <div>
-                                    <div className="font-medium mb-2">Recommended Fixes:</div>
-                                    <ul className="list-disc pl-5 text-sm space-y-1">
-                                        {info.nextAuthDiagnostics.fixes_applied.map((fix, index) => (
-                                            <li key={index} className="text-amber-600">{fix}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            ) : null}
-
-                            {/* Migration Button */}
-                            {info.nextAuthDiagnostics?.schema?.missing?.length ? (
-                                <div className="mt-6 border-t pt-4">
-                                    <div className="font-medium mb-2">Apply Missing Table Migrations</div>
-                                    <p className="text-sm text-gray-500 mb-3">
-                                        Create the required NextAuth tables directly in your database
-                                    </p>
-
-                                    {migrationStatus.error && (
-                                        <div className="text-red-500 text-sm mb-3">{migrationStatus.error}</div>
-                                    )}
-
-                                    {migrationStatus.success && (
-                                        <div className="text-green-500 text-sm mb-3">Migration applied successfully!</div>
-                                    )}
-
-                                    {migrationStatus.results.length > 0 && (
-                                        <div className="mb-3 text-sm">
-                                            <div className="font-medium mb-1">Results:</div>
-                                            <ul className="space-y-1">
-                                                {migrationStatus.results.map((result, idx) => (
-                                                    <li key={idx} className={result.status === 'success' ? 'text-green-500' : 'text-red-500'}>
-                                                        {result.sql} - {result.status}
-                                                        {result.error ? `: ${result.error}` : ''}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    <Button
-                                        onClick={applyMigrations}
-                                        className="w-full"
-                                        variant="outline"
-                                        disabled={migrationStatus.loading}
-                                    >
-                                        {migrationStatus.loading ? 'Applying Migrations...' : 'Apply NextAuth Tables Directly'}
-                                    </Button>
-                                </div>
-                            ) : null}
-                        </div>
-                    ) : info.nextAuthDiagnostics?.status === 'error' ? (
-                        <div className="text-red-500">{info.nextAuthDiagnostics.error}</div>
-                    ) : (
-                        <div className="animate-pulse">Click the button to diagnose NextAuth issues...</div>
-                    )}
-                    <Button
-                        onClick={diagnoseNextAuth}
-                        className="w-full mt-4"
-                        variant="outline"
-                        disabled={info.nextAuthDiagnostics?.status === 'loading'}
-                    >
-                        Diagnose NextAuth Issues
-                    </Button>
-                </CardContent>
-            </Card>
-
-            {/* NextAuth Detailed Diagnostics */}
-            <div>
-                <h2 className="text-2xl font-bold mb-4">NextAuth Health Checks</h2>
-                <div className="space-y-6">
-
-                    {/* User Schema Check */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle>User Schema Compatibility</CardTitle>
-                                <Badge
-                                    variant={
-                                        info.userSchema?.status === 'success'
-                                            ? (info.userSchema.userTableSchema?.canRelateToAccount ? 'success' : 'destructive')
-                                            : info.userSchema?.status === 'error'
-                                                ? 'destructive'
-                                                : 'outline'
-                                    }
-                                >
-                                    {info.userSchema?.status === 'success'
-                                        ? (info.userSchema.userTableSchema?.canRelateToAccount ? 'Compatible' : 'Incompatible')
-                                        : info.userSchema?.status || 'Not Checked'}
-                                </Badge>
-                            </div>
-                            <CardDescription>Check if your User table is compatible with NextAuth</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {info.userSchema?.status === 'success' ? (
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="font-medium mb-2">User Table Schema:</div>
-                                        <div className="pl-4 space-y-2 text-sm">
-                                            <div>Primary Key: {info.userSchema.userTableSchema?.primaryKey || 'Not found'}</div>
-
-                                            {info.userSchema.userTableSchema?.missingAuthColumns?.length ? (
-                                                <div className="text-amber-600">
-                                                    Missing Columns: {info.userSchema.userTableSchema?.missingAuthColumns.join(', ')}
-                                                </div>
-                                            ) : (
-                                                <div className="text-green-500">All expected columns present</div>
-                                            )}
-
                                             <div>
-                                                User-Account Relation:
-                                                {info.userSchema.userTableSchema?.canRelateToAccount
-                                                    ? <span className="text-green-500"> Compatible</span>
-                                                    : <span className="text-red-500"> Incompatible</span>}
+                                                <div className="font-medium mb-2">Response</div>
+                                                <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40">
+                                                    {JSON.stringify(data.response, null, 2)}
+                                                </pre>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    {info.userSchema.recommendations?.length ? (
-                                        <div>
-                                            <div className="font-medium mb-2">Recommendations:</div>
-                                            <ul className="list-disc pl-5 text-sm space-y-1">
-                                                {info.userSchema.recommendations.map((recommendation, idx) => (
-                                                    <li key={idx} className="text-amber-600">{recommendation}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ) : null}
-
-                                    {/* Add columns button */}
-                                    {info.userSchema.userTableSchema?.missingAuthColumns?.length ? (
-                                        <div className="mt-6 border-t pt-4">
-                                            <div className="font-medium mb-2">Fix Missing Columns</div>
-                                            <p className="text-sm text-gray-500 mb-3">
-                                                Add missing columns required by NextAuth to your User table
-                                            </p>
-
-                                            {userColumnStatus.error && (
-                                                <div className="text-red-500 text-sm mb-3">{userColumnStatus.error}</div>
-                                            )}
-
-                                            {userColumnStatus.success && (
-                                                <div className="text-green-500 text-sm mb-3">Columns added successfully!</div>
-                                            )}
-
-                                            {userColumnStatus.results.length > 0 && (
-                                                <div className="mb-3 text-sm">
-                                                    <div className="font-medium mb-1">Results:</div>
-                                                    <ul className="space-y-1">
-                                                        {userColumnStatus.results.map((result, idx) => (
-                                                            <li key={idx} className={result.status === 'success' ? 'text-green-500' : 'text-red-500'}>
-                                                                {result.sql} - {result.status}
-                                                                {result.error ? `: ${result.error}` : ''}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-
-                                            <Button
-                                                onClick={addMissingColumns}
-                                                className="w-full"
-                                                variant="outline"
-                                                disabled={userColumnStatus.loading}
-                                            >
-                                                {userColumnStatus.loading ? 'Adding Columns...' : 'Add Missing Columns'}
-                                            </Button>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ) : info.userSchema?.status === 'error' ? (
-                                <div className="text-red-500">{info.userSchema.error}</div>
-                            ) : (
-                                <div className="animate-pulse">Click the button to check User schema...</div>
-                            )}
-                            <Button
-                                onClick={checkUserSchema}
-                                className="w-full mt-4"
-                                variant="outline"
-                                disabled={info.userSchema?.status === 'loading'}
-                            >
-                                Check User Schema
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    {/* NextAuth Logs */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle>NextAuth Logs & Diagnostics</CardTitle>
-                                <Badge
-                                    variant={
-                                        info.nextAuthLogs?.status === 'success'
-                                            ? (info.nextAuthLogs.errors?.length ? 'destructive' : 'success')
-                                            : info.nextAuthLogs?.status === 'error'
-                                                ? 'destructive'
-                                                : 'outline'
-                                    }
-                                >
-                                    {info.nextAuthLogs?.status === 'success'
-                                        ? (info.nextAuthLogs.errors?.length ? 'Issues Found' : 'All Good')
-                                        : info.nextAuthLogs?.status || 'Not Checked'}
-                                </Badge>
-                            </div>
-                            <CardDescription>Detailed logs and checks for NextAuth.js</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {info.nextAuthLogs?.status === 'success' ? (
-                                <div className="space-y-4">
-                                    {/* Diagnostics Summary */}
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <div className="font-medium">Adapter:</div>
-                                        <div className="col-span-2">
-                                            <Badge
-                                                variant={info.nextAuthLogs.diagnostics?.adapter?.status === 'success' ? 'success' : 'destructive'}
-                                            >
-                                                {info.nextAuthLogs.diagnostics?.adapter?.status === 'success' ? 'OK' : 'Error'}
-                                            </Badge>
-                                        </div>
-
-                                        <div className="font-medium">Auth Config:</div>
-                                        <div className="col-span-2">
-                                            <Badge
-                                                variant={info.nextAuthLogs.diagnostics?.authOptions?.status === 'success' ? 'success' : 'destructive'}
-                                            >
-                                                {info.nextAuthLogs.diagnostics?.authOptions?.status === 'success' ? 'OK' : 'Error'}
-                                            </Badge>
-                                        </div>
-
-                                        <div className="font-medium">Environment:</div>
-                                        <div className="col-span-2">
-                                            <Badge
-                                                variant={info.nextAuthLogs.diagnostics?.environmentComplete ? 'success' : 'destructive'}
-                                            >
-                                                {info.nextAuthLogs.diagnostics?.environmentComplete ? 'Complete' : 'Missing Variables'}
-                                            </Badge>
-                                        </div>
-                                    </div>
-
-                                    {/* Logs */}
-                                    <div>
-                                        <div className="font-medium mb-2">Logs:</div>
-                                        <div className="bg-gray-50 p-3 rounded text-sm font-mono text-gray-800 max-h-60 overflow-y-auto">
-                                            {info.nextAuthLogs.logs?.map((log, idx) => (
-                                                <div key={idx} className={log.startsWith('✗') ? 'text-red-500' : log.startsWith('✓') ? 'text-green-500' : ''}>
-                                                    {log}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Errors */}
-                                    {info.nextAuthLogs.errors?.length ? (
-                                        <div>
-                                            <div className="font-medium mb-2">Errors:</div>
-                                            <ul className="list-disc pl-5 text-sm space-y-1">
-                                                {info.nextAuthLogs.errors.map((error, idx) => (
-                                                    <li key={idx} className="text-red-500">{error}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ) : null}
-
-                                    {/* Recommendations */}
-                                    {info.nextAuthLogs.recommendations?.length ? (
-                                        <div>
-                                            <div className="font-medium mb-2">Recommendations:</div>
-                                            <ul className="list-disc pl-5 text-sm space-y-1">
-                                                {info.nextAuthLogs.recommendations.map((recommendation, idx) => (
-                                                    <li key={idx} className="text-amber-600">{recommendation}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ) : info.nextAuthLogs?.status === 'error' ? (
-                                <div className="text-red-500">{info.nextAuthLogs.error}</div>
-                            ) : (
-                                <div className="animate-pulse">Click the button to get NextAuth logs...</div>
-                            )}
-                            <Button
-                                onClick={checkNextAuthLogs}
-                                className="w-full mt-4"
-                                variant="outline"
-                                disabled={info.nextAuthLogs?.status === 'loading'}
-                            >
-                                Check NextAuth Logs
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
-
-            <Separator />
-
-            {/* API Endpoints */}
-            <div>
-                <h2 className="text-2xl font-bold mb-4">API Endpoints</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(info.apis).map(([endpoint, data]) => (
-                        <Card key={endpoint}>
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <CardTitle>{endpoint}</CardTitle>
-                                    <Badge
-                                        variant={
-                                            data.status === 'ok'
-                                                ? 'success'
-                                                : data.status === 'error'
-                                                    ? 'destructive'
-                                                    : 'outline'
-                                        }
+                                    ) : data.status === 'error' ? (
+                                        <div className="text-red-500">{data.error}</div>
+                                    ) : (
+                                        <div className="animate-pulse">Testing endpoint...</div>
+                                    )}
+                                    <Button
+                                        onClick={() => testEndpoint(endpoint)}
+                                        className="w-full mt-4"
+                                        variant="outline"
+                                        disabled={data.status === 'loading'}
                                     >
-                                        {data.status}
-                                    </Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {data.status === 'ok' ? (
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between">
-                                            <span className="font-medium">Latency:</span>
-                                            <span>{data.latency}ms</span>
-                                        </div>
-                                        <div>
-                                            <div className="font-medium mb-2">Response</div>
-                                            <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40">
-                                                {JSON.stringify(data.response, null, 2)}
-                                            </pre>
-                                        </div>
-                                    </div>
-                                ) : data.status === 'error' ? (
-                                    <div className="text-red-500">{data.error}</div>
-                                ) : (
-                                    <div className="animate-pulse">Testing endpoint...</div>
-                                )}
-                                <Button
-                                    onClick={() => testEndpoint(endpoint)}
-                                    className="w-full mt-4"
-                                    variant="outline"
-                                    disabled={data.status === 'loading'}
-                                >
-                                    Test Endpoint
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-
-            <Separator />
-
-            {/* Environment Variables */}
-            <div>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold">Environment Variables</h2>
-                    <Button
-                        onClick={() => setShowEnvVars(!showEnvVars)}
-                        variant="outline"
-                    >
-                        {showEnvVars ? 'Hide' : 'Show'} Environment Variables
-                    </Button>
-                </div>
-                {showEnvVars && (
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="space-y-2">
-                                {Object.entries(info.environment_variables).length > 0 ? (
-                                    Object.entries(info.environment_variables).map(([key, value]) => (
-                                        <div key={key} className="flex justify-between items-start border-b pb-2">
-                                            <span className="font-medium">{key}:</span>
-                                            <span className="max-w-md break-all">
-                                                {value ? (
-                                                    key.includes('KEY') || key.includes('SECRET') || key.includes('PASSWORD')
-                                                        ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
-                                                        : value
-                                                ) : 'Not set'}
-                                            </span>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-4">No environment variables available</div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
+                                        Test Endpoint
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 } 

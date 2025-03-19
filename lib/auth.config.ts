@@ -1,9 +1,9 @@
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaAdapter } from "@auth/prisma-adapter";  // Updated import
-import prisma from '@/lib/prismaClient'; // Use absolute import
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import prisma from '@/lib/prismaClient';
 import bcrypt from 'bcryptjs';
-import type { NextAuthOptions, Session, User as NextAuthUser } from 'next-auth';
+import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { AdapterUser } from 'next-auth/adapters';
 
@@ -21,23 +21,33 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Missing credentials');
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          });
 
-        if (!user || !user.password) {
-          throw new Error('Invalid email or password');
+          if (!user || !user.password) {
+            throw new Error('Invalid email or password');
+          }
+
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+          if (!isValid) {
+            throw new Error('Invalid email or password');
+          }
+
+          return {
+            id: user.id.toString(),
+            email: user.email,
+            name: user.name || undefined,
+            credits_remaining: user.credits_remaining
+          };
+        } catch (error) {
+          console.error('Auth error:', error);
+          return null;
         }
-
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-        if (!isValid) {
-          throw new Error('Invalid email or password');
-        }
-
-        return { id: user.id.toString(), email: user.email };
       },
     }),
     GoogleProvider({
@@ -47,60 +57,95 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === 'google') {
-        if (!user.email) {
-          throw new Error('User email is required');
-        }
+      try {
+        if (account?.provider === 'google') {
+          if (!user.email) {
+            throw new Error('User email is required');
+          }
 
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-
-        if (!existingUser) {
-          const newUser = await prisma.user.create({
-            data: {
-              email: user.email,
-              name: user.name ?? '', // Handle null/undefined safely
-              password: '', // No password for Google users
-              created_at: new Date(),
-              updated_at: new Date(),
-            },
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email },
           });
-          user.id = newUser.id;
-        } else {
-          user.id = existingUser.id;
+
+          if (!existingUser) {
+            const newUser = await prisma.user.create({
+              data: {
+                email: user.email,
+                name: user.name ?? '', // Handle null/undefined safely
+                password: '', // No password for Google users
+                credits_remaining: '50', // Default starting credits
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+            });
+            user.id = newUser.id;
+          } else {
+            user.id = existingUser.id;
+          }
         }
+        return true; // Allow sign-in to proceed
+      } catch (error) {
+        console.error('SignIn error:', error);
+        return false;
       }
-      return true; // Allow sign-in to proceed
     },
     async session({ session, token }: { session: Session; token: JWT }) {
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email ?? undefined },
-      });
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            credits_remaining: true
+          }
+        });
 
-      if (user) {
-        session.user.id = user.id.toString();
-        session.user.name = user.name ?? undefined;
+        if (user) {
+          session.user.id = user.id.toString();
+          session.user.name = user.name ?? undefined;
+          // @ts-ignore - Add credits to session
+          session.user.credits_remaining = user.credits_remaining;
+        }
+
+        return session;
+      } catch (error) {
+        console.error('Session callback error:', error);
+        // Still return the session, but log the error
+        return session;
       }
-
-      return session;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
         token.sub = user.id.toString();
+        // Store credits in the token for quick access
+        // @ts-ignore
+        token.credits_remaining = user.credits_remaining;
       }
       return token;
     },
     async redirect({ url, baseUrl }) {
-      return baseUrl + '/';
+      // Default to baseUrl if url is not provided
+      if (!url || url.startsWith(baseUrl)) {
+        return baseUrl + '/';
+      }
+      // If it's an absolute URL and starts with the base URL, allow it
+      if (url.startsWith('http') && url.startsWith(baseUrl)) {
+        return url;
+      }
+      // For relative URLs
+      return baseUrl + url;
     },
   },
+  debug: process.env.NODE_ENV === 'development',
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: '/auth/signin',
     signOut: '/auth/signout',
+    error: '/auth/error',
   },
 };

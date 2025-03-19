@@ -87,6 +87,46 @@ interface SystemInfo {
             latency?: number;
         };
     };
+    prismaTest?: {
+        status: 'success' | 'error' | 'loading';
+        connectionTest?: boolean;
+        adapterTest?: {
+            success: boolean;
+            error: string | null;
+        };
+        userTest?: {
+            success: boolean;
+            error: string | null;
+            methods?: any;
+        };
+        schemaVersion?: string;
+        prismaVersion?: string;
+        error?: string;
+    };
+    nextAuthDiagnostics?: {
+        status: 'success' | 'error' | 'loading';
+        adapter?: {
+            success: boolean;
+            methods?: string[];
+            error?: string;
+        };
+        config?: {
+            success: boolean;
+            config?: {
+                present: string[];
+                missing: string[];
+            };
+            error?: string;
+        };
+        schema?: {
+            success: boolean;
+            available?: string[];
+            missing?: string[];
+            error?: string;
+        };
+        fixes_applied?: string[];
+        error?: string;
+    };
 }
 
 export default function DebugPage() {
@@ -103,9 +143,18 @@ export default function DebugPage() {
             webhook: { status: 'loading' },
             reset_password: { status: 'loading' },
         },
+        prismaTest: { status: 'loading' },
+        nextAuthDiagnostics: { status: 'loading' }
     });
 
     const [showEnvVars, setShowEnvVars] = useState(false);
+
+    const [migrationStatus, setMigrationStatus] = useState({
+        loading: false,
+        success: false,
+        error: null as string | null,
+        results: [] as any[]
+    });
 
     useEffect(() => {
         const fetchSystemInfo = async () => {
@@ -204,6 +253,131 @@ export default function DebugPage() {
                     error: error.message
                 }
             }));
+        }
+    };
+
+    const testPrismaAdapter = async () => {
+        setInfo(prev => ({
+            ...prev,
+            prismaTest: { status: 'loading' }
+        }));
+
+        try {
+            const response = await fetch('/api/debug/prisma-test');
+            const data = await response.json();
+
+            if (data.error) {
+                setInfo(prev => ({
+                    ...prev,
+                    prismaTest: {
+                        status: 'error',
+                        error: data.error
+                    }
+                }));
+            } else {
+                setInfo(prev => ({
+                    ...prev,
+                    prismaTest: {
+                        status: 'success',
+                        connectionTest: data.connectionTest,
+                        adapterTest: data.adapterTest,
+                        userTest: data.userTest,
+                        schemaVersion: data.schemaVersion,
+                        prismaVersion: data.prismaVersion
+                    }
+                }));
+            }
+        } catch (error: any) {
+            setInfo(prev => ({
+                ...prev,
+                prismaTest: {
+                    status: 'error',
+                    error: error.message
+                }
+            }));
+        }
+    };
+
+    const diagnoseNextAuth = async () => {
+        setInfo(prev => ({
+            ...prev,
+            nextAuthDiagnostics: { status: 'loading' }
+        }));
+
+        try {
+            const response = await fetch('/api/debug/fix-nextauth');
+            const data = await response.json();
+
+            if (data.error) {
+                setInfo(prev => ({
+                    ...prev,
+                    nextAuthDiagnostics: {
+                        status: 'error',
+                        error: data.error
+                    }
+                }));
+            } else {
+                setInfo(prev => ({
+                    ...prev,
+                    nextAuthDiagnostics: {
+                        status: 'success',
+                        adapter: data.diagnostics.adapter,
+                        config: data.diagnostics.config,
+                        schema: data.diagnostics.schema,
+                        fixes_applied: data.diagnostics.fixes_applied
+                    }
+                }));
+            }
+        } catch (error: any) {
+            setInfo(prev => ({
+                ...prev,
+                nextAuthDiagnostics: {
+                    status: 'error',
+                    error: error.message
+                }
+            }));
+        }
+    };
+
+    const applyMigrations = async () => {
+        setMigrationStatus({
+            loading: true,
+            success: false,
+            error: null,
+            results: []
+        });
+
+        try {
+            const response = await fetch('/api/debug/apply-migrations', {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.error) {
+                setMigrationStatus({
+                    loading: false,
+                    success: false,
+                    error: data.error,
+                    results: []
+                });
+            } else {
+                setMigrationStatus({
+                    loading: false,
+                    success: true,
+                    error: null,
+                    results: data.results || []
+                });
+
+                // Refresh the NextAuth diagnostics
+                diagnoseNextAuth();
+            }
+        } catch (error: any) {
+            setMigrationStatus({
+                loading: false,
+                success: false,
+                error: error.message,
+                results: []
+            });
         }
     };
 
@@ -350,6 +524,248 @@ export default function DebugPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Prisma Adapter Test */}
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>Prisma Adapter Test</CardTitle>
+                        <Badge
+                            variant={
+                                info.prismaTest?.status === 'success'
+                                    ? 'success'
+                                    : info.prismaTest?.status === 'error'
+                                        ? 'destructive'
+                                        : 'outline'
+                            }
+                        >
+                            {info.prismaTest?.status || 'Not Tested'}
+                        </Badge>
+                    </div>
+                    <CardDescription>Tests for Prisma client and NextAuth adapter</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {info.prismaTest?.status === 'success' ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="font-medium">Connection Test:</div>
+                                <div>{info.prismaTest.connectionTest ? '✅ Connected' : '❌ Failed'}</div>
+
+                                <div className="font-medium">Adapter Test:</div>
+                                <div>
+                                    {info.prismaTest.adapterTest?.success ?
+                                        '✅ Adapter Created' :
+                                        `❌ Error: ${info.prismaTest.adapterTest?.error}`}
+                                </div>
+
+                                <div className="font-medium">User Test:</div>
+                                <div>
+                                    {info.prismaTest.userTest?.success ?
+                                        '✅ User Table Accessible' :
+                                        `❌ Error: ${info.prismaTest.userTest?.error}`}
+                                </div>
+
+                                <div className="font-medium">Prisma Version:</div>
+                                <div>{info.prismaTest.prismaVersion}</div>
+
+                                <div className="font-medium">Schema Version:</div>
+                                <div>{info.prismaTest.schemaVersion}</div>
+                            </div>
+
+                            {info.prismaTest.userTest?.methods && (
+                                <div>
+                                    <div className="font-medium mb-2">User Methods Test:</div>
+                                    <div className="pl-4 space-y-2 text-sm">
+                                        <div>User Count: {info.prismaTest.userTest.methods.count}</div>
+                                        <div>Find First: {info.prismaTest.userTest.methods.findFirst ? '✅ Working' : '❌ Failed'}</div>
+                                        <div>
+                                            User By Account: {
+                                                info.prismaTest.userTest.methods.userByAccount?.success ?
+                                                    '✅ Working' :
+                                                    info.prismaTest.userTest.methods.userByAccount?.error?.includes('prisma.account') ?
+                                                        '⚠️ Account table missing (expected for new setup)' :
+                                                        `❌ Error: ${info.prismaTest.userTest.methods.userByAccount?.error}`
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : info.prismaTest?.status === 'error' ? (
+                        <div className="text-red-500">{info.prismaTest.error}</div>
+                    ) : (
+                        <div className="animate-pulse">Click the button to test Prisma adapter...</div>
+                    )}
+                    <Button
+                        onClick={testPrismaAdapter}
+                        className="w-full mt-4"
+                        variant="outline"
+                        disabled={info.prismaTest?.status === 'loading'}
+                    >
+                        Test Prisma Adapter
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {/* NextAuth Diagnostics */}
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>NextAuth Diagnostics</CardTitle>
+                        <Badge
+                            variant={
+                                info.nextAuthDiagnostics?.status === 'success'
+                                    ? 'success'
+                                    : info.nextAuthDiagnostics?.status === 'error'
+                                        ? 'destructive'
+                                        : 'outline'
+                            }
+                        >
+                            {info.nextAuthDiagnostics?.status || 'Not Tested'}
+                        </Badge>
+                    </div>
+                    <CardDescription>Diagnose and fix common NextAuth configuration issues</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {info.nextAuthDiagnostics?.status === 'success' ? (
+                        <div className="space-y-4">
+                            {/* Adapter Check */}
+                            <div>
+                                <div className="font-medium flex items-center mb-2">
+                                    <span>PrismaAdapter:</span>
+                                    <Badge
+                                        variant={info.nextAuthDiagnostics.adapter?.success ? 'success' : 'destructive'}
+                                        className="ml-2"
+                                    >
+                                        {info.nextAuthDiagnostics.adapter?.success ? 'OK' : 'Issue Detected'}
+                                    </Badge>
+                                </div>
+                                {info.nextAuthDiagnostics.adapter?.error ? (
+                                    <div className="text-red-500 text-sm">{info.nextAuthDiagnostics.adapter.error}</div>
+                                ) : (
+                                    <div className="text-sm pl-4">
+                                        <div>Available Methods: {info.nextAuthDiagnostics.adapter?.methods?.join(', ')}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Config Check */}
+                            <div>
+                                <div className="font-medium flex items-center mb-2">
+                                    <span>Auth Configuration:</span>
+                                    <Badge
+                                        variant={info.nextAuthDiagnostics.config?.success ? 'success' : 'destructive'}
+                                        className="ml-2"
+                                    >
+                                        {info.nextAuthDiagnostics.config?.success ? 'OK' : 'Issue Detected'}
+                                    </Badge>
+                                </div>
+                                {info.nextAuthDiagnostics.config?.error ? (
+                                    <div className="text-red-500 text-sm">{info.nextAuthDiagnostics.config.error}</div>
+                                ) : (
+                                    <div className="text-sm pl-4">
+                                        <div>Present: {info.nextAuthDiagnostics.config?.config?.present.join(', ')}</div>
+                                        {info.nextAuthDiagnostics.config?.config?.missing.length ? (
+                                            <div className="text-red-500">Missing: {info.nextAuthDiagnostics.config?.config?.missing.join(', ')}</div>
+                                        ) : null}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Schema Check */}
+                            <div>
+                                <div className="font-medium flex items-center mb-2">
+                                    <span>Database Schema:</span>
+                                    <Badge
+                                        variant={info.nextAuthDiagnostics.schema?.success ? 'success' : 'destructive'}
+                                        className="ml-2"
+                                    >
+                                        {info.nextAuthDiagnostics.schema?.success ? 'OK' : 'Issue Detected'}
+                                    </Badge>
+                                </div>
+                                {info.nextAuthDiagnostics.schema?.error ? (
+                                    <div className="text-red-500 text-sm">{info.nextAuthDiagnostics.schema.error}</div>
+                                ) : (
+                                    <div className="text-sm pl-4">
+                                        {info.nextAuthDiagnostics.schema?.missing?.length ? (
+                                            <div className="text-red-500">
+                                                Missing Tables: {info.nextAuthDiagnostics.schema?.missing.join(', ')}
+                                            </div>
+                                        ) : (
+                                            <div>All required tables present</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Fixes */}
+                            {info.nextAuthDiagnostics.fixes_applied?.length ? (
+                                <div>
+                                    <div className="font-medium mb-2">Recommended Fixes:</div>
+                                    <ul className="list-disc pl-5 text-sm space-y-1">
+                                        {info.nextAuthDiagnostics.fixes_applied.map((fix, index) => (
+                                            <li key={index} className="text-amber-600">{fix}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ) : null}
+
+                            {/* Migration Button */}
+                            {info.nextAuthDiagnostics?.schema?.missing?.length ? (
+                                <div className="mt-6 border-t pt-4">
+                                    <div className="font-medium mb-2">Apply Missing Table Migrations</div>
+                                    <p className="text-sm text-gray-500 mb-3">
+                                        Create the required NextAuth tables in your database
+                                    </p>
+
+                                    {migrationStatus.error && (
+                                        <div className="text-red-500 text-sm mb-3">{migrationStatus.error}</div>
+                                    )}
+
+                                    {migrationStatus.success && (
+                                        <div className="text-green-500 text-sm mb-3">Migration applied successfully!</div>
+                                    )}
+
+                                    {migrationStatus.results.length > 0 && (
+                                        <div className="mb-3 text-sm">
+                                            <div className="font-medium mb-1">Results:</div>
+                                            <ul className="space-y-1">
+                                                {migrationStatus.results.map((result, idx) => (
+                                                    <li key={idx} className={result.status === 'success' ? 'text-green-500' : 'text-red-500'}>
+                                                        {result.sql} - {result.status}
+                                                        {result.error ? `: ${result.error}` : ''}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <Button
+                                        onClick={applyMigrations}
+                                        className="w-full"
+                                        variant="outline"
+                                        disabled={migrationStatus.loading}
+                                    >
+                                        {migrationStatus.loading ? 'Applying Migrations...' : 'Apply NextAuth Migrations'}
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : info.nextAuthDiagnostics?.status === 'error' ? (
+                        <div className="text-red-500">{info.nextAuthDiagnostics.error}</div>
+                    ) : (
+                        <div className="animate-pulse">Click the button to diagnose NextAuth issues...</div>
+                    )}
+                    <Button
+                        onClick={diagnoseNextAuth}
+                        className="w-full mt-4"
+                        variant="outline"
+                        disabled={info.nextAuthDiagnostics?.status === 'loading'}
+                    >
+                        Diagnose NextAuth Issues
+                    </Button>
+                </CardContent>
+            </Card>
 
             <Separator />
 

@@ -12,6 +12,11 @@
    - User table is missing associations or doesn't exist
    - The Account, Session, and VerificationToken tables are missing
 
+3. **Column Name Case Mismatch (NEW!)**:
+   - NextAuth expects snake_case column names (e.g., `user_id`)
+   - Our tables have camelCase column names (e.g., `userId`)
+   - Error: `The column 'accounts.user_id' does not exist in the current database`
+
 ## New Solutions Implemented
 
 We've created multiple approaches to fix these issues, with new solutions added after earlier attempts:
@@ -62,6 +67,15 @@ We've created multiple approaches to fix these issues, with new solutions added 
   - Executes all SQL in one large statement via $executeRaw
   - Verifies the created tables
 
+### 7. Column Case Fix (NEWEST!)
+- **Path**: `/api/debug/case-fix`
+- **Method**: Adds generated columns to bridge snake_case and camelCase expectations
+- **Features**:
+  - Detects existing column naming conventions
+  - Adds snake_case alias columns (e.g., `user_id`) for camelCase columns (e.g., `userId`)
+  - Creates appropriate indexes on alias columns
+  - Non-destructive - keeps original columns intact
+
 ## Recommended Approach Order
 
 When facing database issues, try these approaches in order:
@@ -89,6 +103,21 @@ We've implemented several techniques to work around serverless connection issues
 - Adding retry logic with timeouts
 - Adding explicit connection management
 
+### The Column Case Mismatch Issue
+
+The error `accounts.user_id does not exist` happens because:
+1. NextAuth's Prisma adapter is looking for snake_case columns (`user_id`)
+2. Our tables have camelCase columns (`userId`) 
+3. PostgreSQL is case-sensitive with column names
+
+Our solution adds generated columns as aliases, so both naming styles work:
+```sql
+ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "user_id" TEXT 
+GENERATED ALWAYS AS ("userId") STORED;
+```
+
+This creates a `user_id` column that always reflects the value in `userId` without duplicating data.
+
 ## After Tables Are Created
 
 Once the tables are successfully created, regular authentication should work without issue. The tables will be used by NextAuth's Prisma adapter without requiring further manual intervention.
@@ -97,8 +126,8 @@ Once the tables are successfully created, regular authentication should work wit
 
 1. Deploy the latest changes to Vercel
 2. Visit the debug page at `/debug`
-3. Click "Execute SQL Directly" button
-4. After creating tables, click "Check Auth Status" to verify
+3. Click "Fix Column Case Issues" first
+4. Check Auth Status to verify the fix worked
 5. Return to normal application use
 
 ## Additional Notes

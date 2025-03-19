@@ -6,6 +6,9 @@ import { serverLogger } from '@/utils/serverLogger';
 import { ModelName } from '@/types/ai.types';
 import { DEFAULT_BRAINSTORM_SETTINGS } from '@/types/chat/settings';
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   serverLogger.info('🔹 Request received at /api/chat/saveMessage');
 

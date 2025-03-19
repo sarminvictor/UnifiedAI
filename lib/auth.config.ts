@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import type { AdapterUser } from 'next-auth/adapters';
+import { getAllCallbackUrls } from '@/lib/runtime-config';
 
 // Create a list of all possible hostnames for correct OAuth redirects
 const validHosts = [

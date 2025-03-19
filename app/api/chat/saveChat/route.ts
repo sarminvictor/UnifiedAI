@@ -6,6 +6,9 @@ import { ModelName } from '@/types/ai.types';
 import { DEFAULT_BRAINSTORM_SETTINGS, BrainstormSettings } from '@/types/chat/settings';
 import { Prisma } from '@prisma/client';
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 const generateSummary = (messages: any[]): string => {
   if (messages.length === 0) return "New Chat";
   const firstUserMessage = messages.find(m => m.user_input)?.user_input;

@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth.config';
 import prisma from '@/lib/prismaClient';
 import { serverLogger } from '@/utils/serverLogger';
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

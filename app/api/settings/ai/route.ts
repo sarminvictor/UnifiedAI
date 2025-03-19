@@ -5,6 +5,9 @@ import prisma from '@/lib/prismaClient';
 import { AIProvider } from '@/types/ai.types';
 import { serverLogger } from '@/utils/serverLogger';
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 // Get current settings
 export async function GET() {
     try {

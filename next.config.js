@@ -54,6 +54,9 @@ const nextConfig = {
     },
     poweredByHeader: false,
 
+    // Force all routes to be dynamic to avoid static generation errors
+    dynamicParams: true,
+
     async rewrites() {
         return [
             {

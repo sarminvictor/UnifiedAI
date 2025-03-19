@@ -24,6 +24,9 @@ import { TokenCalculator } from '@/services/ai/tokenCalculator';
 import { BrainstormSettings } from '@/types/chat/settings';
 import { BRAINSTORM_PROMPTS } from '@/utils/prompts';
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 interface SummaryConfig {
   llm: BaseChatModel;
   previousMessages: ChatMessage[];

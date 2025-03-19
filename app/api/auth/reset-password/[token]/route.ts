@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, Prisma } from '@prisma/client';  // Add Prisma type import
 import bcrypt from 'bcryptjs';
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 
 // Validate token (GET request)

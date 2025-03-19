@@ -1,4 +1,4 @@
-import { headers } from 'next/headers';
+import { type NextRequest } from 'next/server';
 
 /**
  * Runtime configuration helper for handling different Vercel deployment environments
@@ -18,47 +18,62 @@ const validHosts = [
  */
 
 // Get the current hostname, respecting headers when available
-export function getCurrentHost(): string {
+export function getCurrentHost(req?: NextRequest): string {
     // This will run on the client during CSR, so we use window.location
     if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        return hostname;
+        return window.location.hostname;
     }
 
-    // Server-side, we don't have access to headers here
-    // This will be enhanced when called from a route handler
-    return '';
+    // If we have a request object, use its host header
+    if (req) {
+        const host = req.headers.get('host') || '';
+        const forwardedHost = req.headers.get('x-forwarded-host') || '';
+        return forwardedHost || host || '';
+    }
+
+    // In server components without request context, use environment variables
+    if (process.env.VERCEL_URL) {
+        return process.env.VERCEL_URL;
+    }
+
+    // Fallback to NEXTAUTH_URL if available
+    if (process.env.NEXTAUTH_URL) {
+        try {
+            const url = new URL(process.env.NEXTAUTH_URL);
+            return url.hostname;
+        } catch (e) {
+            console.error('Failed to parse NEXTAUTH_URL:', e);
+        }
+    }
+
+    // Default fallback for local development
+    return process.env.NODE_ENV === 'development' ? 'localhost:3000' : '';
 }
 
 // Determines the base URL to use for redirects and callbacks
-export function getBaseUrl(): string {
+export function getBaseUrl(req?: NextRequest): string {
     // In production, we use HTTPS
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-
-    // First try to use the configured NEXTAUTH_URL
-    if (process.env.NEXTAUTH_URL) {
-        return process.env.NEXTAUTH_URL;
-    }
 
     // If on the client, we can get the URL from the window
     if (typeof window !== 'undefined') {
         return `${window.location.protocol}//${window.location.host}`;
     }
 
-    // If the VERCEL_URL is set (in Vercel deployments), use that
-    if (process.env.VERCEL_URL) {
-        return `https://${process.env.VERCEL_URL}`;
+    // Get the hostname
+    const host = getCurrentHost(req);
+    if (!host) {
+        return '';
     }
 
-    // For local development
-    return process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000'
-        : '';
+    // Use appropriate protocol based on environment
+    const isLocalhost = host.includes('localhost');
+    return `${isLocalhost ? 'http' : 'https'}://${host}`;
 }
 
 // Function to get Google OAuth callback URL
-export function getGoogleCallbackUrl(): string {
-    return `${getBaseUrl()}/api/auth/callback/google`;
+export function getGoogleCallbackUrl(req?: NextRequest): string {
+    return `${getBaseUrl(req)}/api/auth/callback/google`;
 }
 
 // Get all possible Google OAuth callback URLs for configuration
@@ -70,8 +85,8 @@ export function getAllCallbackUrls(): string[] {
 }
 
 // Function to get all relevant auth callback URLs to try (for debug purposes)
-export function getPossibleCallbackUrls(): string[] {
-    const baseUrl = getBaseUrl();
+export function getPossibleCallbackUrls(req?: NextRequest): string[] {
+    const baseUrl = getBaseUrl(req);
     const urls = [
         `${baseUrl}/api/auth/callback/google`,
     ];

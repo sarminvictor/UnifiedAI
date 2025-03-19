@@ -4,6 +4,9 @@ import { getServerSession } from "@/lib/auth";
 import stripe, { getStripePriceId, FALLBACK_PRICE_ID_FOR_TESTING } from "@/utils/subscriptions/stripe";
 import { ensureUserExists } from "@/utils/userHelpers";
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   console.log("Starting checkout session creation...");
   const session = await getServerSession();

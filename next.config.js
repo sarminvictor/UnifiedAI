@@ -25,7 +25,9 @@ const nextConfig = {
     },
     experimental: {
         // Remove appDir as it's now default in Next.js 14
-        optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai']
+        optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai'],
+        // Mark problem packages for client-side rendering only
+        serverComponentsExternalPackages: ['resend']
     },
     poweredByHeader: false,
 

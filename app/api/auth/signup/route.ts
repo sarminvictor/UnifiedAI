@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       data: {
         email: normalizedEmail,
         password: hashedPassword,
-        credits_remaining: 0,
+        credits_remaining: "0",
         created_at: new Date(),
         updated_at: new Date(),
       },

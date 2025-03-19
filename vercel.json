@@ -14,5 +14,6 @@
     "deploymentEnabled": {
       "main": true
     }
-  }
+  },
+  "ignoreCommand": "exit 0"
 } 

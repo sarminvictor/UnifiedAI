@@ -18,40 +18,37 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Missing credentials');
+          return null;
         }
 
         try {
-          // Call the signin API instead of accessing Prisma directly
-          // Use absolute URL or relative URL based on environment
-          const baseUrl = process.env.NEXTAUTH_URL ||
-            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-
-          const response = await fetch(`${baseUrl}/api/auth/signin`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
+          // Use direct Prisma query instead of API route to avoid routing conflicts
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email.toLowerCase() },
           });
 
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Invalid email or password');
+          if (!user || !user.password) {
+            return null;
           }
 
-          const user = await response.json().catch(() => null);
-          if (!user) {
-            throw new Error('Invalid response from authentication server');
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!isValid) {
+            return null;
           }
 
-          return user;
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name || null,
+            credits_remaining: user.credits_remaining || "0"
+          };
         } catch (error) {
           console.error('Auth error:', error);
-          throw new Error(error instanceof Error ? error.message : 'Authentication failed');
+          return null;
         }
       },
     }),

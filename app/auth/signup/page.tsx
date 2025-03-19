@@ -45,24 +45,9 @@ export default function SignUp() {
         return;
       }
 
-      // Sign in the user after successful signup
-      try {
-        const result = await signIn('credentials', {
-          email,
-          password,
-          redirect: false,
-          callbackUrl: '/',
-        });
-
-        if (result?.error) {
-          setError(result.error);
-        } else if (result?.ok) {
-          router.push('/');
-        }
-      } catch (signInError) {
-        console.error('Error during sign in after signup:', signInError);
-        setError('Account created but couldn\'t sign in automatically. Please try signing in.');
-      }
+      // Redirect to signin page after successful signup instead of auto-signin
+      setError('');
+      router.push('/auth/signin?success=true');
     } catch (error) {
       console.error('Sign up error:', error);
       setError('Something went wrong. Please try again.');

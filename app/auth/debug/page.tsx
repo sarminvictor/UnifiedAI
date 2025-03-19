@@ -1,13 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SessionProvider, useSession } from 'next-auth/react';
+import { SessionProvider, useSession, signIn } from 'next-auth/react';
 
 // Separate the content that uses useSession into its own component
 function DebugContent() {
     const { data: session, status } = useSession();
     const [envVars, setEnvVars] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [authConfig, setAuthConfig] = useState<any>(null);
+    const [loadingConfig, setLoadingConfig] = useState(false);
+
+    useEffect(() => {
+        // Check for error parameters in URL
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            const error = url.searchParams.get('error');
+            if (error) {
+                console.error('Auth error from URL:', error);
+                setAuthError(error);
+            }
+        }
+    }, []);
 
     useEffect(() => {
         async function checkEnv() {
@@ -25,9 +40,29 @@ function DebugContent() {
         checkEnv();
     }, []);
 
+    const checkAuthConfig = async () => {
+        try {
+            setLoadingConfig(true);
+            const response = await fetch('/api/debug/auth-config');
+            const data = await response.json();
+            setAuthConfig(data);
+        } catch (error) {
+            console.error('Error fetching auth config:', error);
+        } finally {
+            setLoadingConfig(false);
+        }
+    };
+
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">NextAuth Debug</h1>
+
+            {authError && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    <p className="font-bold">Authentication Error</p>
+                    <p>{authError}</p>
+                </div>
+            )}
 
             <div className="bg-gray-100 p-4 rounded mb-4">
                 <h2 className="text-xl font-semibold mb-2">Session Status</h2>
@@ -66,14 +101,30 @@ function DebugContent() {
                 )}
             </div>
 
-            <div className="mt-4">
+            <div className="mt-4 space-y-2">
                 <button
-                    onClick={() => window.location.href = '/api/auth/signin?callbackUrl=/'}
+                    onClick={() => signIn('google', { callbackUrl: '/' })}
                     className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 >
-                    Sign in with Google (Test)
+                    Sign in with Google (Proper Method)
+                </button>
+
+                <button
+                    onClick={checkAuthConfig}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                    Check Auth Configuration
                 </button>
             </div>
+
+            {authConfig && (
+                <div className="mt-4 bg-gray-100 p-4 rounded">
+                    <h2 className="text-xl font-semibold mb-2">Auth Configuration</h2>
+                    <pre className="bg-gray-200 p-2 mt-2 rounded overflow-auto max-h-60 text-xs">
+                        {JSON.stringify(authConfig, null, 2)}
+                    </pre>
+                </div>
+            )}
         </div>
     );
 }

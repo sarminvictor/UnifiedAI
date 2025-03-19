@@ -41,9 +41,15 @@ function SignInContent() {
 
   const handleGoogleSignIn = () => {
     setIsLoading(true);
+    console.log("Starting Google sign-in with callbackUrl='/'");
     signIn('google', {
       callbackUrl: '/',
       redirect: true
+    }).then(result => {
+      console.log("SignIn result:", result);
+    }).catch(error => {
+      console.error("SignIn error:", error);
+      setIsLoading(false);
     });
   };
 

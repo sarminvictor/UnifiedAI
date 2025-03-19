@@ -53,6 +53,13 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
     }),
   ],
   session: {
@@ -129,19 +136,33 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async redirect({ url, baseUrl }) {
-      // Allows relative callbacks and callbacks to same domain
+      // Log redirect information for debugging
+      console.log('NextAuth redirect:', { url, baseUrl });
+
+      // Handle empty URL case
       if (!url) return baseUrl;
 
-      // Allow callbacks to same origin
-      const urlObj = new URL(url);
-      const baseUrlObj = new URL(baseUrl);
+      // Safety check for parsing URLs
+      try {
+        // Allow relative URLs
+        if (url.startsWith('/')) {
+          return `${baseUrl}${url}`;
+        }
 
-      if (urlObj.origin === baseUrlObj.origin) {
-        return url;
-      }
+        // Allow callbacks to same origin
+        const urlObj = new URL(url);
+        const baseUrlObj = new URL(baseUrl);
 
-      // Don't allow callbacks to /api/auth paths - redirect to home instead
-      if (url.startsWith(`${baseUrl}/api/auth`)) {
+        if (urlObj.origin === baseUrlObj.origin) {
+          return url;
+        }
+
+        // Don't allow callbacks to /api/auth paths - redirect to home instead
+        if (url.startsWith(`${baseUrl}/api/auth`)) {
+          return baseUrl;
+        }
+      } catch (error) {
+        console.error('Error parsing URL in redirect callback:', error);
         return baseUrl;
       }
 

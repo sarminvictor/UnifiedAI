@@ -20,6 +20,31 @@ export async function GET(
 
     // Log the callback attempt for debugging
     console.log(`OAuth callback received for provider: ${provider}`);
+    console.log('Callback URL params:', searchParamsString);
+    console.log('Request URL:', request.url);
+
+    // Special handling for Google OAuth errors
+    const error = searchParams.get('error');
+    if (error) {
+        console.error('OAuth error:', error);
+        // Redirect to the error page with the error code
+        return NextResponse.redirect(
+            new URL(`/auth/error?error=${error}`,
+                process.env.NEXTAUTH_URL || request.nextUrl.origin)
+        );
+    }
+
+    // Handle OAuth state and code
+    const state = searchParams.get('state');
+    const code = searchParams.get('code');
+
+    if (!state || !code) {
+        console.error('Missing state or code in OAuth callback');
+        return NextResponse.redirect(
+            new URL('/auth/error?error=MissingOAuthParameters',
+                process.env.NEXTAUTH_URL || request.nextUrl.origin)
+        );
+    }
 
     // Redirect to the appropriate NextAuth callback handler
     return NextResponse.redirect(

@@ -11,6 +11,10 @@ function DebugContent() {
     const [authError, setAuthError] = useState<string | null>(null);
     const [authConfig, setAuthConfig] = useState<any>(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
+    const [domainInfo, setDomainInfo] = useState({
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+        fullUrl: typeof window !== 'undefined' ? window.location.href : 'unknown'
+    });
 
     useEffect(() => {
         // Check for error parameters in URL
@@ -106,12 +110,19 @@ function DebugContent() {
                     onClick={() => signIn('google', { callbackUrl: '/' })}
                     className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 >
-                    Sign in with Google (Proper Method)
+                    Sign in with Google (Standard Method)
+                </button>
+
+                <button
+                    onClick={() => window.location.href = '/api/auth/google-redirect?callbackUrl=/'}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                    Sign in with Google (Special Redirect)
                 </button>
 
                 <button
                     onClick={checkAuthConfig}
-                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
                 >
                     Check Auth Configuration
                 </button>
@@ -125,6 +136,16 @@ function DebugContent() {
                     </pre>
                 </div>
             )}
+
+            <div className="mt-4 bg-yellow-50 p-4 rounded border border-yellow-300">
+                <h2 className="text-xl font-semibold mb-2">Domain Information</h2>
+                <p><strong>Current Hostname:</strong> {domainInfo.hostname}</p>
+                <p><strong>Full URL:</strong> {domainInfo.fullUrl}</p>
+                <p className="mt-2 text-sm text-yellow-800">
+                    Note: If this hostname doesn't match your configured callback URLs in Google Cloud Console,
+                    authentication will fail.
+                </p>
+            </div>
         </div>
     );
 }

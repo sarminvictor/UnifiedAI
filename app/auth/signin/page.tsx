@@ -53,6 +53,12 @@ function SignInContent() {
     });
   };
 
+  const handleDirectGoogleSignIn = () => {
+    setIsLoading(true);
+    console.log("Using direct Google redirect");
+    window.location.href = '/api/auth/google-redirect?callbackUrl=/';
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-6 shadow-md">
@@ -124,7 +130,7 @@ function SignInContent() {
             </div>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 space-y-2">
             <button
               onClick={handleGoogleSignIn}
               disabled={isLoading}
@@ -133,7 +139,18 @@ function SignInContent() {
               <svg className="mr-2 h-5 w-5" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M15.545 6.558a9.42 9.42 0 0 0-.139-1.626c-.18-1.209-.768-2.004-1.693-2.485-.274-.142-.572-.24-.879-.294A6.294 6.294 0 0 0 11.597 2H10a6.34 6.34 0 0 0-1.233.125c-.324.062-.642.167-.95.312-.307.145-.587.344-.837.584-.25.24-.463.516-.636.833-.174.317-.312.656-.412 1.017a6.727 6.727 0 0 0-.139 1.626c0 .627.16 1.271.462 1.832.301.56.742 1.05 1.313 1.47.57.42 1.262.755 2.044.976a10.292 10.292 0 0 0 2.49.365c.412 0 .841-.04 1.252-.125.411-.086.805-.217 1.17-.366a5.821 5.821 0 0 0 1.84-1.131c.559-.473.967-.96 1.216-1.458.249-.5.374-1.063.374-1.689 0-.549-.12-1.116-.371-1.697-.43-.98-1.249-1.813-2.267-2.38v.003Z" />
               </svg>
-              Google
+              Google Sign-In (Standard)
+            </button>
+
+            <button
+              onClick={handleDirectGoogleSignIn}
+              disabled={isLoading}
+              className="group relative flex w-full justify-center rounded-md border border-green-500 bg-white px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50"
+            >
+              <svg className="mr-2 h-5 w-5" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M15.545 6.558a9.42 9.42 0 0 0-.139-1.626c-.18-1.209-.768-2.004-1.693-2.485-.274-.142-.572-.24-.879-.294A6.294 6.294 0 0 0 11.597 2H10a6.34 6.34 0 0 0-1.233.125c-.324.062-.642.167-.95.312-.307.145-.587.344-.837.584-.25.24-.463.516-.636.833-.174.317-.312.656-.412 1.017a6.727 6.727 0 0 0-.139 1.626c0 .627.16 1.271.462 1.832.301.56.742 1.05 1.313 1.47.57.42 1.262.755 2.044.976a10.292 10.292 0 0 0 2.49.365c.412 0 .841-.04 1.252-.125.411-.086.805-.217 1.17-.366a5.821 5.821 0 0 0 1.84-1.131c.559-.473.967-.96 1.216-1.458.249-.5.374-1.063.374-1.689 0-.549-.12-1.116-.371-1.697-.43-.98-1.249-1.813-2.267-2.38v.003Z" />
+              </svg>
+              Google Sign-In (Alternative Method)
             </button>
           </div>
         </div>

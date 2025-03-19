@@ -197,6 +197,11 @@ export default function DebugPage() {
     });
 
     const [showEnvVars, setShowEnvVars] = useState(false);
+    const [directPrismaTest, setDirectPrismaTest] = useState<any>({
+        status: 'idle',
+        data: null,
+        error: null
+    });
 
     const [migrationStatus, setMigrationStatus] = useState({
         loading: false,
@@ -561,9 +566,29 @@ export default function DebugPage() {
         }
     };
 
+    const testDirectPrismaConnection = async () => {
+        try {
+            setDirectPrismaTest({ status: 'loading', data: null, error: null });
+            const response = await fetch('/api/debug/prisma-direct');
+            const data = await response.json();
+
+            setDirectPrismaTest({
+                status: 'success',
+                data,
+                error: null
+            });
+        } catch (error: any) {
+            setDirectPrismaTest({
+                status: 'error',
+                data: null,
+                error: error.message || 'Failed to test direct Prisma connection'
+            });
+        }
+    };
+
     return (
-        <div className="container mx-auto p-6 max-w-5xl">
-            <h1 className="text-3xl font-bold mb-6">System Diagnostics</h1>
+        <div className="container mx-auto p-6 max-w-6xl">
+            <h1 className="text-3xl font-bold mb-6">Debug & Diagnostics</h1>
 
             {/* System Info Section */}
             <Card className="mb-8">
@@ -790,6 +815,128 @@ export default function DebugPage() {
                         ))}
                     </div>
                 </CardContent>
+            </Card>
+
+            {/* Direct Prisma Connection Test */}
+            <Card className="mb-6">
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2">
+                                <Database size={18} />
+                                Direct Prisma Connection
+                            </CardTitle>
+                            <CardDescription>
+                                Test direct Prisma database connection and schema
+                            </CardDescription>
+                        </div>
+                        {directPrismaTest.status === 'success' && (
+                            <Badge variant="success">Connected</Badge>
+                        )}
+                        {directPrismaTest.status === 'error' && (
+                            <Badge variant="destructive">Error</Badge>
+                        )}
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {directPrismaTest.status === 'idle' && (
+                        <p className="text-gray-600 mb-4">
+                            Click the button below to test a direct connection to your database using Prisma.
+                        </p>
+                    )}
+
+                    {directPrismaTest.status === 'loading' && (
+                        <div className="flex items-center justify-center h-24">
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                        </div>
+                    )}
+
+                    {directPrismaTest.status === 'error' && (
+                        <div className="bg-red-50 p-4 rounded-md text-red-700 mb-4">
+                            <p className="font-semibold">Error testing Prisma connection:</p>
+                            <p className="mt-1">{directPrismaTest.error}</p>
+                        </div>
+                    )}
+
+                    {directPrismaTest.status === 'success' && (
+                        <div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4">
+                                <div className="font-medium">Connection Test:</div>
+                                <div>
+                                    {directPrismaTest.data.connectionTest.success ? (
+                                        <span className="text-green-600 flex items-center gap-1">
+                                            <CheckCircle size={16} /> Connected
+                                        </span>
+                                    ) : (
+                                        <span className="text-red-600 flex items-center gap-1">
+                                            <XCircle size={16} /> Failed
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="font-medium">User Table:</div>
+                                <div>
+                                    {directPrismaTest.data.userTest.success ? (
+                                        <span className="text-green-600 flex items-center gap-1">
+                                            <CheckCircle size={16} /> Accessible
+                                        </span>
+                                    ) : (
+                                        <span className="text-red-600 flex items-center gap-1">
+                                            <XCircle size={16} /> Error
+                                        </span>
+                                    )}
+                                </div>
+
+                                {directPrismaTest.data.userTest.success && (
+                                    <>
+                                        <div className="font-medium">User Count:</div>
+                                        <div>{directPrismaTest.data.userTest.userCount}</div>
+                                    </>
+                                )}
+
+                                <div className="font-medium">Timestamp:</div>
+                                <div>{new Date(directPrismaTest.data.timestamp).toLocaleString()}</div>
+                            </div>
+
+                            {directPrismaTest.data.userTest.success && (
+                                <div className="mt-4">
+                                    <h4 className="font-medium mb-2">User Table Schema:</h4>
+                                    <div className="bg-gray-50 p-3 rounded text-sm font-mono overflow-x-auto">
+                                        <pre>{JSON.stringify(directPrismaTest.data.userTest.schema, null, 2)}</pre>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-4">
+                                <h4 className="font-medium mb-2">Database Version:</h4>
+                                <div className="bg-gray-50 p-3 rounded text-sm">
+                                    {directPrismaTest.data.prismaVersion}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
+                <CardFooter>
+                    <Button
+                        onClick={testDirectPrismaConnection}
+                        disabled={directPrismaTest.status === 'loading'}
+                        className="mr-2"
+                    >
+                        {directPrismaTest.status === 'loading' ? 'Testing...' : 'Test Direct Connection'}
+                    </Button>
+
+                    <Link href="/debug/prisma">
+                        <Button variant="outline">
+                            Prisma Diagnostics
+                        </Button>
+                    </Link>
+
+                    <Link href="/debug/auth">
+                        <Button variant="outline" className="ml-2">
+                            Authentication Diagnostics
+                        </Button>
+                    </Link>
+                </CardFooter>
             </Card>
         </div>
     );

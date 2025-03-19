@@ -192,7 +192,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/auth/signin',
     signOut: '/auth/signout',
-    error: '/auth/signin', // Handle errors in our own component
+    error: '/auth/error', // Add a dedicated error page
   },
   debug: process.env.NODE_ENV === 'development',
   logger: authLogger,

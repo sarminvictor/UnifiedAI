@@ -100,8 +100,8 @@ export default function SignIn() {
   };
 
   const handleGoogleSignIn = () => {
-    // Directly redirect to the Google auth endpoint
-    window.location.href = '/api/auth/signin/google?callbackUrl=/';
+    // Use the proper NextAuth API route with direct API call
+    signIn('google', { callbackUrl: '/' });
   };
 
   return (

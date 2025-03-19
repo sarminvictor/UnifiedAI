@@ -60,7 +60,7 @@ export default function SignUp() {
   };
 
   const handleGoogleSignUp = () => {
-    // Manually redirect to the NextAuth Google sign-in endpoint
+    // Use the proper NextAuth API route
     window.location.href = '/api/auth/signin/google?callbackUrl=/';
   };
 

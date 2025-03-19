@@ -14,9 +14,14 @@ async function validatePlan(planId: string) {
 }
 
 export async function middleware(request: NextRequest) {
+  // Skip auth checks for Next.js API routes related to authentication
+  if (request.nextUrl.pathname.startsWith('/api/auth/')) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ req: request });
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth/');
-  const isDebugPage = request.nextUrl.pathname === '/debug';
+  const isDebugPage = request.nextUrl.pathname.startsWith('/debug');
   const isProtectedRoute = !isAuthPage && !isDebugPage && request.nextUrl.pathname !== '/';
 
   // Allow requests to auth pages or debug page without token
@@ -48,7 +53,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verify user exists for protected routes
-  if (token?.email) {
+  if (token?.email && isProtectedRoute) {
     const response = await fetch(`${request.nextUrl.origin}/api/auth/verify-user`, {
       method: 'POST',
       headers: {

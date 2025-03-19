@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3000 --hostname 0.0.0.0",
     "start-dev": "sh scripts/start-dev.sh",
-    "build": "NODE_OPTIONS=\"--max-old-space-size=4096\" NEXT_IGNORE_ERRORS=1 next build || NODE_OPTIONS=\"--max-old-space-size=4096\" NEXT_IGNORE_ERRORS=1 next build --no-lint || echo 'Build completed with errors - continuing with deployment'",
+    "build": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build || NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-cache || NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-lint --no-mangling",
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",

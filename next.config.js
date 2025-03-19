@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    reactStrictMode: true,
+    reactStrictMode: false,
     // Skip environment variables during build since they're added manually in Vercel
     env: {},
     // Disable type checking during build for faster builds
@@ -10,6 +10,12 @@ const nextConfig = {
     // Disable ESLint during build
     eslint: {
         ignoreDuringBuilds: true,
+    },
+    // Turn off static exports
+    output: 'standalone',
+    // Disable image optimization during build
+    images: {
+        unoptimized: true,
     },
     webpack: (config, { dev, isServer }) => {
         // Add optimization for development
@@ -32,7 +38,9 @@ const nextConfig = {
             '@radix-ui/react-accordion',
             '@radix-ui/react-dialog',
             '@radix-ui/react-slot',
-            '@radix-ui/react-separator'
+            '@radix-ui/react-separator',
+            '@geist-ui/core',
+            'sonner'
         ]
     },
     poweredByHeader: false,

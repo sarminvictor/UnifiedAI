@@ -181,6 +181,13 @@ export default function DebugPage() {
         results: [] as any[]
     });
 
+    const [userColumnStatus, setUserColumnStatus] = useState({
+        loading: false,
+        success: false,
+        error: null as string | null,
+        results: [] as any[]
+    });
+
     useEffect(() => {
         const fetchSystemInfo = async () => {
             try {
@@ -486,6 +493,50 @@ export default function DebugPage() {
         }
     };
 
+    const addMissingColumns = async () => {
+        setUserColumnStatus({
+            loading: true,
+            success: false,
+            error: null,
+            results: []
+        });
+
+        try {
+            const response = await fetch('/api/debug/add-missing-columns', {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.error) {
+                setUserColumnStatus({
+                    loading: false,
+                    success: false,
+                    error: data.error,
+                    results: []
+                });
+            } else {
+                setUserColumnStatus({
+                    loading: false,
+                    success: true,
+                    error: null,
+                    results: data.results || []
+                });
+
+                // Refresh the user schema
+                setTimeout(() => {
+                    checkUserSchema();
+                }, 1000);
+            }
+        } catch (error: any) {
+            setUserColumnStatus({
+                loading: false,
+                success: false,
+                error: error.message,
+                results: []
+            });
+        }
+    };
+
     return (
         <div className="container mx-auto py-10 space-y-8">
             <h1 className="text-4xl font-bold">System Debug Dashboard</h1>
@@ -615,7 +666,36 @@ export default function DebugPage() {
                                 </div>
                             </div>
                         ) : info.auth.status === 'unauthenticated' ? (
-                            <div>No active session</div>
+                            <div className="space-y-4">
+                                <div>No active session. Sign in to create the first account.</div>
+
+                                {/* Database tables status summary */}
+                                <div className="mt-2 border-t pt-2">
+                                    <div className="font-medium mb-1">Auth Readiness:</div>
+                                    <ul className="space-y-1 text-sm pl-2">
+                                        <li className={info.prismaTest?.connectionTest ? "text-green-500" : "text-red-500"}>
+                                            {info.prismaTest?.connectionTest ? "✓" : "✗"} Database Connection
+                                        </li>
+
+                                        <li className={info.nextAuthDiagnostics?.schema?.missing?.length === 0 ? "text-green-500" : "text-red-500"}>
+                                            {info.nextAuthDiagnostics?.schema?.missing?.length === 0 ? "✓" : "✗"} NextAuth Tables
+                                            {info.nextAuthDiagnostics?.schema?.missing && info.nextAuthDiagnostics.schema.missing.length > 0 &&
+                                                <span className="text-amber-600"> (Run 'Apply NextAuth Tables' in diagnostics)</span>}
+                                        </li>
+
+                                        <li className={!info.userSchema?.userTableSchema?.missingAuthColumns?.length ? "text-green-500" : "text-amber-600"}>
+                                            {!info.userSchema?.userTableSchema?.missingAuthColumns?.length ? "✓" : "⚠️"} User Schema Compatibility
+                                            {info.userSchema?.userTableSchema?.missingAuthColumns && info.userSchema.userTableSchema.missingAuthColumns.length > 0 &&
+                                                <span> (Add missing columns in User Schema section)</span>}
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div className="mt-2 border-t pt-2 text-sm">
+                                    <strong>Next steps:</strong> Once all auth requirements are met, click 'Sign In' to
+                                    create the first user and establish the auth tables properly.
+                                </div>
+                            </div>
                         ) : (
                             <div className="animate-pulse">Checking authentication...</div>
                         )}
@@ -931,6 +1011,47 @@ export default function DebugPage() {
                                                     <li key={idx} className="text-amber-600">{recommendation}</li>
                                                 ))}
                                             </ul>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Add columns button */}
+                                    {info.userSchema.userTableSchema?.missingAuthColumns?.length ? (
+                                        <div className="mt-6 border-t pt-4">
+                                            <div className="font-medium mb-2">Fix Missing Columns</div>
+                                            <p className="text-sm text-gray-500 mb-3">
+                                                Add missing columns required by NextAuth to your User table
+                                            </p>
+
+                                            {userColumnStatus.error && (
+                                                <div className="text-red-500 text-sm mb-3">{userColumnStatus.error}</div>
+                                            )}
+
+                                            {userColumnStatus.success && (
+                                                <div className="text-green-500 text-sm mb-3">Columns added successfully!</div>
+                                            )}
+
+                                            {userColumnStatus.results.length > 0 && (
+                                                <div className="mb-3 text-sm">
+                                                    <div className="font-medium mb-1">Results:</div>
+                                                    <ul className="space-y-1">
+                                                        {userColumnStatus.results.map((result, idx) => (
+                                                            <li key={idx} className={result.status === 'success' ? 'text-green-500' : 'text-red-500'}>
+                                                                {result.sql} - {result.status}
+                                                                {result.error ? `: ${result.error}` : ''}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            <Button
+                                                onClick={addMissingColumns}
+                                                className="w-full"
+                                                variant="outline"
+                                                disabled={userColumnStatus.loading}
+                                            >
+                                                {userColumnStatus.loading ? 'Adding Columns...' : 'Add Missing Columns'}
+                                            </Button>
                                         </div>
                                     ) : null}
                                 </div>

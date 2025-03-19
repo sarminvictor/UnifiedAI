@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const NEXTAUTH_MIGRATIONS = [
-    // Create Account table
+    // Create Account table with the correct column casing
     `CREATE TABLE IF NOT EXISTS "Account" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -22,7 +22,7 @@ const NEXTAUTH_MIGRATIONS = [
     CONSTRAINT "Account_pkey" PRIMARY KEY ("id")
   )`,
 
-    // Create Session table
+    // Create Session table with the correct column casing
     `CREATE TABLE IF NOT EXISTS "Session" (
     "id" TEXT NOT NULL,
     "sessionToken" TEXT NOT NULL,
@@ -45,7 +45,7 @@ const NEXTAUTH_MIGRATIONS = [
     `CREATE INDEX IF NOT EXISTS "Account_userId_idx" ON "Account"("userId")`,
     `CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId")`,
 
-    // Add foreign key constraints - Handle both "id" and "user_id" column possibilities
+    // Add foreign key constraints - With the correct camelCase column names
     `ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" 
    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
@@ -65,10 +65,10 @@ const NEXTAUTH_MIGRATIONS = [
   )
   VALUES (
     gen_random_uuid(), 
-    'direct_nextauth_tables', 
+    'nextauth_tables_camelcase', 
     NOW(), 
-    'add_nextauth_tables_direct', 
-    'Applied via direct migration API', 
+    'update_nextauth_tables_camelcase', 
+    'Applied via direct migration API with correct column casing', 
     NULL, 
     NOW(), 
     1
@@ -78,6 +78,40 @@ const NEXTAUTH_MIGRATIONS = [
 
 export async function POST() {
     try {
+        // First check if there's a naming mismatch and cleanup the old tables if needed
+        try {
+            const accountColumns = await prisma.$queryRaw`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'Account'
+            `;
+
+            const columnNames = Array.isArray(accountColumns)
+                ? accountColumns.map((col: any) => col.column_name)
+                : [];
+
+            // If we have user_id but not userId, drop the incorrect tables to recreate
+            if (columnNames.includes('user_id') && !columnNames.includes('userId')) {
+                console.log('Detected incorrect column naming. Dropping tables to recreate.');
+
+                // Drop constraints first
+                await prisma.$executeRawUnsafe(`
+                    ALTER TABLE IF EXISTS "Account" DROP CONSTRAINT IF EXISTS "Account_user_id_fkey";
+                    ALTER TABLE IF EXISTS "Session" DROP CONSTRAINT IF EXISTS "Session_user_id_fkey";
+                `);
+
+                // Drop tables
+                await prisma.$executeRawUnsafe(`
+                    DROP TABLE IF EXISTS "Account";
+                    DROP TABLE IF EXISTS "Session";
+                    DROP TABLE IF EXISTS "VerificationToken";
+                `);
+            }
+        } catch (error) {
+            console.error('Error checking table schema:', error);
+            // Continue with migration even if check fails
+        }
+
         const results = [];
 
         for (const stmt of NEXTAUTH_MIGRATIONS) {

@@ -57,19 +57,57 @@ export async function GET() {
                 `;
 
                 if (Array.isArray(tables) && tables.length > 0) {
-                    // Based on the schema, we'll need a different approach for the accounts relation
-                    const userByAccountQuery = await prisma.$queryRaw`
-                        SELECT u.* FROM "User" u
-                        JOIN "Account" a ON u.id = a.user_id
-                        WHERE a.provider = 'google'
-                        LIMIT 1
+                    // Check the Account table structure to determine the correct column name
+                    const accountColumns = await prisma.$queryRaw`
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'Account'
                     `;
 
+                    const accountColumnNames = Array.isArray(accountColumns)
+                        ? accountColumns.map((col: any) => col.column_name.toLowerCase())
+                        : [];
+
+                    const hasUserId = accountColumnNames.includes('userid');
+                    const hasUser_Id = accountColumnNames.includes('user_id');
+
+                    // Log the column information for debugging
+                    console.log('Account columns found:', accountColumnNames);
+
+                    let userByAccountQuery;
+
+                    if (hasUserId) {
+                        // Query using the NextAuth default "userId" column name
+                        userByAccountQuery = await prisma.$queryRaw`
+                            SELECT u.* FROM "User" u
+                            JOIN "Account" a ON u.id = a."userId"
+                            WHERE a.provider = 'google'
+                            LIMIT 1
+                        `;
+                    } else if (hasUser_Id) {
+                        // Query using the "user_id" column name common in some schemas
+                        userByAccountQuery = await prisma.$queryRaw`
+                            SELECT u.* FROM "User" u
+                            JOIN "Account" a ON u.id = a.user_id
+                            WHERE a.provider = 'google'
+                            LIMIT 1
+                        `;
+                    } else {
+                        // No recognized column naming pattern found
+                        userByAccountQuery = null;
+                        console.log('No recognized user ID column found in Account table');
+                    }
+
                     userTest.methods.userByAccount = {
-                        success: true,
+                        success: !!userByAccountQuery,
                         user: userByAccountQuery && Array.isArray(userByAccountQuery) && userByAccountQuery.length > 0
                             ? { id: userByAccountQuery[0].id, email: userByAccountQuery[0].email }
-                            : null
+                            : null,
+                        columnInfo: {
+                            hasUserId,
+                            hasUser_Id,
+                            columns: accountColumnNames
+                        }
                     };
                 } else {
                     userTest.methods.userByAccount = {

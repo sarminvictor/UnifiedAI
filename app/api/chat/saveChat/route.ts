@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth.config';
 import prisma from '@/lib/prismaClient';
 import { ModelName } from '@/types/ai.types';
 import { DEFAULT_BRAINSTORM_SETTINGS, BrainstormSettings } from '@/types/chat/settings';

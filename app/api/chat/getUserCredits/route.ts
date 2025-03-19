@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth.config';
 import prisma from '@/lib/prismaClient';
 
 export async function GET(request: NextRequest) {
@@ -15,9 +15,9 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { 
+      select: {
         id: true,
-        credits_remaining: true 
+        credits_remaining: true
       }
     });
 

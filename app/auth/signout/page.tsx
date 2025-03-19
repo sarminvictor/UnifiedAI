@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
-export default function SignOut() {
+function SignOutContent() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -44,5 +44,13 @@ export default function SignOut() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignOut() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <SignOutContent />
+    </Suspense>
   );
 }

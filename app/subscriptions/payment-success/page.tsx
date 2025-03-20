@@ -6,6 +6,11 @@ import { toast } from "sonner";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Add dynamic export to prevent static rendering
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
 export default function PaymentSuccess() {
   const router = useRouter();
   const searchParams = useSearchParams();

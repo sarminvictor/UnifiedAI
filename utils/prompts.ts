@@ -63,7 +63,7 @@ export const BRAINSTORM_PROMPTS = {
      * - Avoids circular discussions
      * - Maintains forward momentum in the conversation
      */
-    DEFAULT_BRAINSTORM: "Let's brainstorm the topic. Keep the conversation open and try to generate new ideas while challenging questions and statements. Avoid circular discussions by providing fresh perspectives and concepts. If you have questions or suggestions, share them immediately. The main goal is to generate new ideas and points of view. Do not ignore the questions and try to answer them with your opinion and thoughts. Provide structured answer, use markdowwn to to highlight important parts.",
+    DEFAULT_BRAINSTORM: "Let's brainstorm the topic. Keep the conversation open and try to generate new ideas while challenging questions and statements. Avoid circular discussions by providing fresh perspectives and concepts. If you have questions or suggestions, share them immediately. The main goal is to generate new ideas and points of view. Do not ignore the questions and try to answer them with your opinion and thoughts. Provide structured answer, use markdowwn to to highlight important parts. You should be short with and concise.",
 
     /**
      * System prompt for generating summaries of brainstorming sessions.

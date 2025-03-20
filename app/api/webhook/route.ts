@@ -15,20 +15,60 @@ export const revalidate = 0;
 export const maxDuration = 60;
 export const fetchCache = 'force-no-store';
 
+// This is important for Next.js to properly handle the raw request
 export async function POST(req: Request) {
+    console.log('Webhook endpoint hit', {
+        method: req.method,
+        url: req.url,
+        headers: Object.fromEntries([...req.headers.entries()].map(([k, v]) => [k, k === 'stripe-signature' ? 'present' : v])),
+    });
+
     try {
-        const body = await req.text();
+        // Get the raw request body as text
+        const rawBody = await req.text();
+
+        // Log the received payload length for debugging
+        console.log('Received webhook payload', {
+            contentType: req.headers.get('content-type'),
+            hasSignature: !!headers().get('stripe-signature'),
+            bodyLength: rawBody.length,
+            bodyPreview: rawBody.substring(0, 50) + '...'
+        });
+
         const signature = headers().get('stripe-signature');
 
         if (!signature) {
-            throw new APIError(400, 'No signature found');
+            console.error('No Stripe signature found in request headers');
+            return NextResponse.json({ error: 'No signature found' }, { status: 400 });
         }
 
-        const event = stripe.webhooks.constructEvent(
-            body,
-            signature,
-            process.env.STRIPE_WEBHOOK_SECRET!
-        );
+        if (!process.env.STRIPE_WEBHOOK_SECRET) {
+            console.error('STRIPE_WEBHOOK_SECRET is not configured');
+            return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+        }
+
+        console.log('Verifying webhook signature', {
+            signatureLength: signature.length,
+            webhookSecretConfigured: !!process.env.STRIPE_WEBHOOK_SECRET
+        });
+
+        let event;
+        try {
+            event = stripe.webhooks.constructEvent(
+                rawBody,
+                signature,
+                process.env.STRIPE_WEBHOOK_SECRET
+            );
+        } catch (err: any) {
+            console.error('Webhook signature verification failed:', err.message, {
+                error: err,
+                signatureHeader: signature
+            });
+            return NextResponse.json(
+                { error: `Webhook signature verification failed: ${err.message}` },
+                { status: 400 }
+            );
+        }
 
         console.log(`Processing webhook event: ${event.type}`, { id: event.id });
 
@@ -70,6 +110,11 @@ export async function POST(req: Request) {
 
             case 'invoice.payment_succeeded': {
                 const invoice = event.data.object as Stripe.Invoice;
+                console.log('Processing invoice.payment_succeeded', {
+                    invoiceId: invoice.id,
+                    customerId: invoice.customer,
+                    subscriptionId: invoice.subscription,
+                });
 
                 // Check if this is for a subscription
                 if (invoice.subscription) {
@@ -211,11 +256,28 @@ export async function POST(req: Request) {
             }
         }
 
+        console.log('Webhook processed successfully', { type: event.type, id: event.id });
         return NextResponse.json({ received: true });
     } catch (error) {
         console.error('Webhook error:', error);
-        return errorResponse(error);
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Unknown error' },
+            { status: 500 }
+        );
     }
+}
+
+// Simple options handler to respond to preflight requests
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Stripe-Signature',
+            'Access-Control-Max-Age': '86400',
+        },
+    });
 }
 
 export const GET = async () => {

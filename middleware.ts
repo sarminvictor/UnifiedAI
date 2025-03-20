@@ -26,6 +26,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/favicon.ico' ||
     pathname.startsWith('/static/')
   ) {
+    console.log('Middleware: allowing direct access to', pathname);
     return NextResponse.next();
   }
 

@@ -22,6 +22,17 @@ const nextConfig = {
     // Add transpilePackages for sonner
     transpilePackages: ['sonner'],
 
+    // Important for Stripe webhooks - disable body parsing for the webhook endpoint
+    api: {
+        bodyParser: {
+            sizeLimit: '1mb',
+        },
+        // Disable body parsing for webhook routes
+        bodyParser: (req) => {
+            return req.url.includes('/api/webhook') ? false : { sizeLimit: '1mb' };
+        },
+    },
+
     async rewrites() {
         return [
             {

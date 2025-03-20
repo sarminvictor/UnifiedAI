@@ -731,6 +731,18 @@ export const useChatStore = create<ChatState>((set, get) => {
           const { chatId, chatData } = action.payload;
           logger.debug('Syncing chat with backend data:', { chatId });
 
+          // Validate that chatData is properly structured
+          if (!chatData) {
+            logger.error('Cannot sync chat: chatData is missing', { chatId });
+            break;
+          }
+
+          // Ensure chat_history exists
+          if (!chatData.chat_history) {
+            logger.warn('Chat data missing chat_history, using empty array', { chatId });
+            chatData.chat_history = [];
+          }
+
           const chats = [...get().chats];
           const chatIndex = chats.findIndex(c => c.chat_id === chatId);
 
@@ -741,6 +753,11 @@ export const useChatStore = create<ChatState>((set, get) => {
 
           // Get existing chat
           const existingChat = chats[chatIndex];
+
+          // Ensure existing chat has a chat_history array
+          if (!existingChat.chat_history) {
+            existingChat.chat_history = [];
+          }
 
           // Check if this is a brainstorm chat
           const isBrainstormChat = existingChat.brainstorm_mode || chatData.brainstorm_mode;
@@ -754,13 +771,17 @@ export const useChatStore = create<ChatState>((set, get) => {
           // Create a map of existing messages for more sophisticated duplicate detection
           const existingMessages = new Map();
           existingChat.chat_history.forEach(msg => {
+            // Skip null/undefined messages
+            if (!msg) return;
+
             // For user messages, use content as the key
             if (msg.user_input && !msg.api_response) {
               const key = `user-${msg.user_input.substring(0, 100)}`;
               existingMessages.set(key, msg);
-            } else {
+            } else if (msg.api_response) {
               // For AI messages or combined messages, use timestamp and content
-              const key = `${msg.timestamp}-${msg.user_input}-${msg.api_response.substring(0, 100)}`;
+              const apiResponseText = msg.api_response || '';
+              const key = `${msg.timestamp}-${msg.user_input}-${apiResponseText.substring(0, 100)}`;
               existingMessages.set(key, msg);
             }
           });

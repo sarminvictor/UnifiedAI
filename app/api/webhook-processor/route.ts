@@ -153,15 +153,47 @@ async function handleInvoicePaymentSucceeded(invoiceData: any) {
             });
 
             // Get plan details
+            const stripeProductId = subscription.items.data[0]?.plan.product as string;
             const planId = subscription.items.data[0]?.plan.id || 'unknown-plan';
-            const planProduct = subscription.items.data[0]?.plan.product as string;
             let planName = 'Unknown Plan';
 
             try {
-                const product = await stripe.products.retrieve(planProduct);
+                const product = await stripe.products.retrieve(stripeProductId);
                 planName = product.name;
             } catch (error) {
-                console.error('Error retrieving product', { productId: planProduct });
+                console.error('Error retrieving product', { productId: stripeProductId });
+            }
+
+            // Map Stripe product ID to plan name
+            const stripePlanNameMap: Record<string, string> = {
+                'prod_RqUmGdLyUsGuxM': 'Starter',
+                'prod_RqUmW0lFzzSzmW': 'Pro'
+            };
+
+            // Use either the retrieved plan name or the mapped name
+            const actualPlanName = stripePlanNameMap[stripeProductId] || planName;
+
+            console.log('Looking up plan by name', { actualPlanName, stripeProductId });
+
+            // Find the corresponding plan in the database
+            const dbPlan = await prisma.plan.findFirst({
+                where: { plan_name: actualPlanName }
+            });
+
+            let planToUse;
+            if (!dbPlan) {
+                console.error('Plan not found in database', { planName: actualPlanName, stripeProductId });
+                // Use a default plan or create a new one if possible
+                // For now, let's try to find any plan as a fallback
+                const fallbackPlan = await prisma.plan.findFirst();
+                if (!fallbackPlan) {
+                    throw new Error('No plans found in database');
+                }
+                console.log('Using fallback plan', { planId: fallbackPlan.plan_id, planName: fallbackPlan.plan_name });
+                planToUse = fallbackPlan;
+            } else {
+                console.log('Found matching plan in database', { planId: dbPlan.plan_id, planName: dbPlan.plan_name });
+                planToUse = dbPlan;
             }
 
             // Check if subscription already exists in database
@@ -177,7 +209,7 @@ async function handleInvoicePaymentSucceeded(invoiceData: any) {
                         status: subscription.status,
                         payment_status: 'paid',
                         end_date: new Date(subscription.current_period_end * 1000),
-                        stripe_info: `active | ${customerId} | ${planProduct}`,
+                        stripe_info: `active | ${customerId} | ${stripeProductId}`,
                     }
                 });
 
@@ -188,12 +220,12 @@ async function handleInvoicePaymentSucceeded(invoiceData: any) {
                     data: {
                         subscription_id: subscriptionId,
                         user_id: user.id,
-                        plan_id: planId,
+                        plan_id: planToUse.plan_id, // Use the database plan ID
                         start_date: new Date(subscription.current_period_start * 1000),
                         end_date: new Date(subscription.current_period_end * 1000),
                         status: subscription.status,
                         payment_status: 'paid',
-                        stripe_info: `active | ${customerId} | ${planProduct}`,
+                        stripe_info: `active | ${customerId} | ${stripeProductId}`,
                         stripe_payment_id: invoice.payment_intent as string || '',
                     }
                 });
@@ -201,17 +233,17 @@ async function handleInvoicePaymentSucceeded(invoiceData: any) {
                 console.log('Created new subscription', {
                     userId: user.id,
                     subscriptionId,
-                    planName
+                    planName: planToUse.plan_name
                 });
 
                 // Update user's credits based on plan
                 let creditsToAdd = '1000'; // Default credits
 
-                if (planName.includes('Starter')) {
+                if (planToUse.plan_name.includes('Starter')) {
                     creditsToAdd = '1000';
-                } else if (planName.includes('Pro')) {
+                } else if (planToUse.plan_name.includes('Pro')) {
                     creditsToAdd = '5000';
-                } else if (planName.includes('Business')) {
+                } else if (planToUse.plan_name.includes('Business')) {
                     creditsToAdd = '15000';
                 }
 

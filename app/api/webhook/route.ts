@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import prisma from '@/lib/prismaClient';
-import { APIError } from '@/lib/api-helpers';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -12,113 +10,80 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
-    console.log('Webhook request received (edge runtime)');
+// This is the critical part - following Stripe's official example exactly
+export async function POST(req: NextRequest): Promise<NextResponse> {
+    const payload = await req.text();
+    const signature = req.headers.get('stripe-signature') as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-        console.error('STRIPE_WEBHOOK_SECRET is not configured');
-        return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
-    }
+    console.log('Webhook received with payload length:', payload.length);
+    console.log('Signature header present:', !!signature);
+
+    let event: Stripe.Event;
 
     try {
-        // Get signature from header
-        const signature = req.headers.get('stripe-signature');
+        event = await stripe.webhooks.constructEventAsync(
+            payload,
+            signature,
+            webhookSecret
+        );
 
-        if (!signature) {
-            console.error('No Stripe signature found');
-            return NextResponse.json({ error: 'No signature found' }, { status: 400 });
-        }
-
-        // CRITICAL: Clone the request to get the raw body
-        const rawBody = await req.clone().text();
-
-        console.log('Webhook raw body retrieved', {
-            length: rawBody.length,
-            signature: signature.substring(0, 20) + '...',
-            webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? 'present' : 'missing'
-        });
-
-        // Construct the event asynchronously - CRITICAL for edge runtime
-        let event;
-        try {
-            // Use constructEventAsync instead of constructEvent for edge runtime
-            event = await stripe.webhooks.constructEventAsync(
-                rawBody,
-                signature,
-                process.env.STRIPE_WEBHOOK_SECRET
-            );
-        } catch (err: any) {
-            console.error('❌ Webhook signature verification failed:', err.message);
-            return NextResponse.json(
-                { error: `Webhook signature verification failed: ${err.message}` },
-                { status: 400 }
-            );
-        }
-
-        console.log(`✅ Webhook verified and received: ${event.type}`, { id: event.id });
-
-        // For edge runtime, we need to handle events asynchronously
-        // Store the event for processing in a queue or database
-        await storeWebhookEvent(event);
-
-        // Return a 200 response immediately to acknowledge receipt
-        return NextResponse.json({ received: true });
-    } catch (error) {
-        console.error('Webhook processing error:', error);
+        console.log(`✅ Success: Validated webhook [${event.id}]`);
+    } catch (err) {
+        console.error(`❌ Error message: ${(err as Error).message}`);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
+            {
+                error: {
+                    message: `Webhook Error: ${(err as Error).message}`,
+                },
+            },
+            { status: 400 }
         );
     }
-}
 
-// For edge runtime, we can't do database operations directly
-// Instead, store the event for later processing
-async function storeWebhookEvent(event: Stripe.Event) {
-    // In production, you would store this in a queue or database for processing
-    // For now, log it and we'll implement a separate processor endpoint
-    console.log('Storing webhook event for processing:', {
-        id: event.id,
-        type: event.type,
-        created: new Date(event.created * 1000).toISOString()
-    });
+    // Handle the event
+    console.log(`Processing event: ${event.type} [${event.id}]`);
 
-    // You can implement a separate endpoint that processes these stored events
-    // Or use a queue service like AWS SQS, Google Cloud Pub/Sub, etc.
-
-    // For demonstration, make an API call to a processor endpoint
+    // Store event ID for processing in webhook-processor
     try {
-        // This would be your internal API that processes the stored event
-        // For Vercel, this is often another serverless function
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/webhook-processor`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Use an internal API key for security
-                'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'test-key'}`
-            },
-            body: JSON.stringify({
-                event_id: event.id,
-                event_type: event.type,
-                event_data: event.data.object,
-                created: event.created
-            })
+        // You can implement a separate endpoint that processes these stored events
+        console.log(`Event to be processed: ${event.type}`, {
+            id: event.id,
+            type: event.type,
+            object: event.data.object,
         });
 
-        if (!response.ok) {
-            console.error('Failed to queue webhook event for processing', {
-                status: response.status,
-                statusText: response.statusText
+        // For demo purposes, log key event information
+        // In production, you would call your processor endpoint here
+        if (process.env.NEXT_PUBLIC_APP_URL) {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/webhook-processor`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.INTERNAL_API_KEY || 'test-key'}`
+                },
+                body: JSON.stringify({
+                    event_id: event.id,
+                    event_type: event.type,
+                    event_data: event.data.object,
+                    created: event.created
+                })
             });
+
+            if (!response.ok) {
+                console.error('Failed to send event to processor', { status: response.status });
+            }
         }
     } catch (error) {
-        // Don't fail the webhook if processing fails - we've already acknowledged receipt
-        console.error('Error queueing webhook for processing:', error);
+        // Log but don't fail the webhook
+        console.error('Error processing webhook:', error);
     }
+
+    return NextResponse.json({ received: true });
 }
 
 // Simple options handler to respond to preflight requests
-export async function OPTIONS() {
+export async function OPTIONS(req: NextRequest) {
     return new NextResponse(null, {
         status: 200,
         headers: {
@@ -130,6 +95,6 @@ export async function OPTIONS() {
     });
 }
 
-export const GET = async () => {
+export function GET() {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
-};
+}

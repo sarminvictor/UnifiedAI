@@ -38,10 +38,11 @@ export async function POST(req: NextRequest) {
             webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? 'present' : 'missing'
         });
 
-        // Construct the event directly
+        // Construct the event asynchronously - CRITICAL for edge runtime
         let event;
         try {
-            event = stripe.webhooks.constructEvent(
+            // Use constructEventAsync instead of constructEvent for edge runtime
+            event = await stripe.webhooks.constructEventAsync(
                 rawBody,
                 signature,
                 process.env.STRIPE_WEBHOOK_SECRET

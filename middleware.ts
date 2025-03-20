@@ -22,6 +22,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/') ||
     pathname.startsWith('/api/debug/') ||
+    pathname === '/api/webhook' ||
     pathname === '/favicon.ico' ||
     pathname.startsWith('/static/')
   ) {
@@ -47,6 +48,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/webhooks/') ||
+    pathname === '/api/webhook' ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/');
 
@@ -130,7 +132,8 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public (public files)
      * - static (static files)
+     * - api/webhook (Stripe webhook)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public|static).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|static|api/webhook).*)',
   ],
 };

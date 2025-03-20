@@ -30,6 +30,8 @@ export async function POST(req: Request) {
             process.env.STRIPE_WEBHOOK_SECRET!
         );
 
+        console.log(`Processing webhook event: ${event.type}`, { id: event.id });
+
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object as Stripe.Checkout.Session;
@@ -63,6 +65,126 @@ export async function POST(req: Request) {
                     },
                 });
 
+                break;
+            }
+
+            case 'invoice.payment_succeeded': {
+                const invoice = event.data.object as Stripe.Invoice;
+
+                // Check if this is for a subscription
+                if (invoice.subscription) {
+                    // Get subscription details from Stripe
+                    const subscriptionId = invoice.subscription as string;
+                    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+                    // Get customer information
+                    const customerId = invoice.customer as string;
+                    const customer = await stripe.customers.retrieve(customerId);
+
+                    if ('deleted' in customer && customer.deleted) {
+                        console.error('Customer has been deleted', { customerId });
+                        break;
+                    }
+
+                    // Get user by email
+                    const userEmail = customer.email;
+                    if (!userEmail) {
+                        console.error('No email associated with this customer', { customerId });
+                        break;
+                    }
+
+                    // Find the user
+                    const user = await prisma.user.findUnique({
+                        where: { email: userEmail }
+                    });
+
+                    if (!user) {
+                        console.error('User not found for email', { email: userEmail });
+                        break;
+                    }
+
+                    console.log('Found user for subscription', {
+                        userId: user.id,
+                        email: userEmail,
+                        subscriptionId
+                    });
+
+                    // Get plan details
+                    const planId = subscription.items.data[0]?.plan.id || 'unknown-plan';
+                    const planProduct = subscription.items.data[0]?.plan.product as string;
+                    let planName = 'Unknown Plan';
+
+                    try {
+                        const product = await stripe.products.retrieve(planProduct);
+                        planName = product.name;
+                    } catch (error) {
+                        console.error('Error retrieving product', { productId: planProduct });
+                    }
+
+                    // Check if subscription already exists in database
+                    const existingSubscription = await prisma.subscription.findFirst({
+                        where: { subscription_id: subscriptionId }
+                    });
+
+                    if (existingSubscription) {
+                        // Update existing subscription
+                        await prisma.subscription.update({
+                            where: { subscription_id: subscriptionId },
+                            data: {
+                                status: subscription.status,
+                                payment_status: 'paid',
+                                end_date: new Date(subscription.current_period_end * 1000),
+                                stripe_info: `active | ${customerId} | ${planProduct}`,
+                            }
+                        });
+
+                        console.log('Updated existing subscription', { subscriptionId });
+                    } else {
+                        // Create new subscription
+                        await prisma.subscription.create({
+                            data: {
+                                subscription_id: subscriptionId,
+                                user_id: user.id,
+                                plan_id: planId,
+                                start_date: new Date(subscription.current_period_start * 1000),
+                                end_date: new Date(subscription.current_period_end * 1000),
+                                status: subscription.status,
+                                payment_status: 'paid',
+                                stripe_info: `active | ${customerId} | ${planProduct}`,
+                                stripe_payment_id: invoice.payment_intent as string || '',
+                            }
+                        });
+
+                        console.log('Created new subscription', {
+                            userId: user.id,
+                            subscriptionId,
+                            planName
+                        });
+
+                        // Update user's credits based on plan
+                        let creditsToAdd = '1000'; // Default credits
+
+                        if (planName.includes('Starter')) {
+                            creditsToAdd = '1000';
+                        } else if (planName.includes('Pro')) {
+                            creditsToAdd = '5000';
+                        } else if (planName.includes('Business')) {
+                            creditsToAdd = '15000';
+                        }
+
+                        await prisma.user.update({
+                            where: { id: user.id },
+                            data: {
+                                credits_remaining: creditsToAdd,
+                            }
+                        });
+
+                        console.log('Updated user credits', {
+                            userId: user.id,
+                            credits: creditsToAdd
+                        });
+                    }
+                }
                 break;
             }
 

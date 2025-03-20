@@ -12,10 +12,11 @@ model User {
   id                  String              @id @default(uuid()) @map("id")
   email               String              @unique
   password            String?
-  credits_remaining   String              @default("0")
+  credits_remaining   String              @default("5")
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   name                String?
+  image               String?
   resetToken          String?
   api_usage_logs      APIUsageLog[]
   chats               Chat[]

@@ -781,13 +781,14 @@ export const useChatStore = create<ChatState>((set, get) => {
             } else if (msg.api_response) {
               // For AI messages or combined messages, use timestamp and content
               const apiResponseText = msg.api_response || '';
-              const key = `${msg.timestamp}-${msg.user_input}-${apiResponseText.substring(0, 100)}`;
+              const userInput = msg.user_input || '';
+              const key = `${msg.timestamp}-${userInput}-${apiResponseText.substring(0, 100)}`;
               existingMessages.set(key, msg);
             }
           });
 
           // Process incoming messages to ensure they have inputType and outputType fields
-          const processedChatHistory = chatData.chat_history.map(msg => {
+          const processedChatHistory = chatData.chat_history.filter(msg => msg !== null && msg !== undefined).map(msg => {
             // Determine if this is a user message (has user input but no API response)
             const isUserMessage = msg.user_input && !msg.api_response;
 
@@ -871,8 +872,21 @@ export const useChatStore = create<ChatState>((set, get) => {
             }
 
             // For AI messages or combined messages, check by timestamp and content
-            const key = `${msg.timestamp}-${msg.user_input}-${msg.api_response.substring(0, 100)}`;
-            return !existingMessages.has(key);
+            try {
+              const userInput = msg.user_input || '';
+              // Ensure api_response exists and is a string before calling substring
+              const apiResponse = msg.api_response || '';
+              const key = `${msg.timestamp}-${userInput}-${apiResponse.substring(0, 100)}`;
+              return !existingMessages.has(key);
+            } catch (error) {
+              // If there's an error processing this message, include it by default
+              logger.error('Error processing message during sync:', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                messageType: 'ai or combined',
+                hasApiResponse: !!msg.api_response
+              });
+              return true;
+            }
           });
 
           // Log summary of sync results

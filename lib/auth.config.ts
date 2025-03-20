@@ -170,9 +170,14 @@ export const authOptions: NextAuthOptions = {
       // Debug logging for redirect URLs
       authLogger.debug('redirect', { url, baseUrl });
 
-      // If no URL provided, go to homepage
+      // If no URL provided, go to chat page
       if (!url || url === '') {
-        return baseUrl;
+        return `${baseUrl}/c`;
+      }
+
+      // Handle callback URLs to specific pages
+      if (url.startsWith('/auth/signin') || url === '/') {
+        return `${baseUrl}/c`;
       }
 
       // Allow relative URLs
@@ -185,8 +190,8 @@ export const authOptions: NextAuthOptions = {
         return url;
       }
 
-      // Default fallback to base URL
-      return baseUrl;
+      // Default fallback to chat page
+      return `${baseUrl}/c`;
     },
   },
   pages: {

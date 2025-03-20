@@ -21,28 +21,23 @@ export async function middleware(request: NextRequest) {
 
   const token = await getToken({ req: request });
   const isAuthenticated = !!token;
-  const isHomePage = request.nextUrl.pathname === '/';
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth/');
   const isDebugPage = request.nextUrl.pathname.startsWith('/debug');
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/(protected)');
+  const isRootPage = request.nextUrl.pathname === '/';
+  const isProtectedRoute = !isAuthPage && !isDebugPage && !isRootPage;
 
-  // Redirect authenticated users from home page to user dashboard
-  if (isHomePage && isAuthenticated) {
-    return NextResponse.redirect(new URL('/(protected)/user', request.url));
+  // Redirect authenticated users from auth pages to main app
+  if (isAuthenticated && isAuthPage) {
+    return NextResponse.redirect(new URL('/c', request.url));
   }
 
-  // Redirect authenticated users from auth pages to user dashboard
-  if (isAuthPage && isAuthenticated) {
-    return NextResponse.redirect(new URL('/(protected)/user', request.url));
-  }
-
-  // Allow requests to debug page regardless of auth status
+  // Allow access to debug pages regardless of auth status
   if (isDebugPage) {
     return NextResponse.next();
   }
 
-  // Redirect to signin if accessing protected route without token
-  if (isProtectedRoute && !isAuthenticated) {
+  // Redirect unauthenticated users from protected routes to login
+  if (!isAuthenticated && isProtectedRoute) {
     const signInUrl = new URL('/auth/signin', request.url);
     signInUrl.searchParams.set('callbackUrl', request.url);
     return NextResponse.redirect(signInUrl);

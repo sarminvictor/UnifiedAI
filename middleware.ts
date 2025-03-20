@@ -24,19 +24,16 @@ export async function middleware(request: NextRequest) {
   const isHomePage = request.nextUrl.pathname === '/';
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth/');
   const isDebugPage = request.nextUrl.pathname.startsWith('/debug');
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/(protected)') ||
-    request.nextUrl.pathname.startsWith('/user') ||
-    request.nextUrl.pathname.startsWith('/subscriptions') ||
-    request.nextUrl.pathname.startsWith('/c');
+  const isProtectedRoute = request.nextUrl.pathname.startsWith('/(protected)');
 
   // Redirect authenticated users from home page to user dashboard
   if (isHomePage && isAuthenticated) {
-    return NextResponse.redirect(new URL('/user', request.url));
+    return NextResponse.redirect(new URL('/(protected)/user', request.url));
   }
 
   // Redirect authenticated users from auth pages to user dashboard
   if (isAuthPage && isAuthenticated) {
-    return NextResponse.redirect(new URL('/user', request.url));
+    return NextResponse.redirect(new URL('/(protected)/user', request.url));
   }
 
   // Allow requests to debug page regardless of auth status

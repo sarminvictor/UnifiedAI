@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSubscription } from "@/hooks/subscriptions/index";
 import { PlanGrid } from "@/components/subscriptions/PlanGrid";
@@ -8,7 +8,7 @@ import { SubscriptionModals } from "@/components/subscriptions/SubscriptionModal
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 
-export default function SubscriptionPage() {
+function SubscriptionPageContent() {
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -152,5 +152,23 @@ export default function SubscriptionPage() {
         selectedPlan={getSelectedPlanName()}
       />
     </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+        <h1 className="text-3xl font-bold mb-6">Subscription Plans</h1>
+        <p className="text-gray-600 mb-8">Loading subscription details...</p>
+        <div className="animate-pulse w-full max-w-6xl flex justify-center space-x-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-gray-200 rounded-lg p-6 w-72 h-96" />
+          ))}
+        </div>
+      </div>
+    }>
+      <SubscriptionPageContent />
+    </Suspense>
   );
 }

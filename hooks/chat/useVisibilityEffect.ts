@@ -38,6 +38,12 @@ export const useVisibilityEffect = () => {
         const chatData = await chatService.getChat(currentChatId);
 
         if (chatData) {
+          // Ensure chat_history exists to prevent "Cannot read properties of undefined (reading 'length')" error
+          if (!chatData.chat_history) {
+            logger.warn('Chat data is missing chat_history property:', { chatId: currentChatId });
+            chatData.chat_history = [];
+          }
+
           // Update the chat in the store with the latest data from the backend
           dispatch({
             type: 'SYNC_CHAT',

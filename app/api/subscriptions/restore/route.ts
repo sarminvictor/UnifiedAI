@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { getServerSession } from "@/lib/auth";
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 import stripe from "@/utils/subscriptions/stripe";
 import { sendSubscriptionUpdate } from "@/utils/sse";

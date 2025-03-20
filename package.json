@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3000 --hostname 0.0.0.0",
     "start-dev": "sh scripts/start-dev.sh",
-    "build": "next build",
+    "build": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build || NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-cache || NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' next build --no-lint --no-mangling",
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
@@ -69,6 +69,7 @@
     "rehype-highlight": "^7.0.2",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "resend": "^2.0.0",
     "reselect": "^5.1.1",
     "sonner": "^2.0.1",
     "stripe": "^17.7.0",

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { PanelLeft } from 'lucide-react';
 
@@ -12,13 +11,16 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      setIsLoading(false);
       return;
     }
 
@@ -31,39 +33,35 @@ export default function SignUp() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Error parsing response:', jsonError);
+        setError('Registration failed. Server returned an invalid response.');
+        setIsLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         setError(data.error || 'Something went wrong. Please try again.');
-      } else {
-        // Sign in the user after successful signup
-        const result = await signIn('credentials', {
-          email,
-          password,
-          redirect: false,
-          callbackUrl: '/',
-        });
-
-        if (result?.error) {
-          setError(result.error);
-        } else if (result?.ok) {
-          router.push('/');
-        }
+        setIsLoading(false);
+        return;
       }
+
+      // Success! Redirect to login page manually
+      console.log('Registration successful, redirecting to sign in page');
+      router.push('/auth/signin?registered=true');
     } catch (error) {
       console.error('Sign up error:', error);
-      setError('Something went wrong. Please try again.');
+      setError('Registration failed. Please try again later.');
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleSignUp = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    try {
-      await signIn('google', { callbackUrl: '/' });
-    } catch (error) {
-      console.error('Google sign-up error:', error);
-      setError('Google sign-up failed.');
-    }
+  const handleGoogleSignUp = () => {
+    // Use the proper NextAuth API route
+    window.location.href = '/api/auth/signin/google?callbackUrl=/';
   };
 
   return (
@@ -102,6 +100,7 @@ export default function SignUp() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -115,6 +114,7 @@ export default function SignUp() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -128,6 +128,7 @@ export default function SignUp() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
+                disabled={isLoading}
               />
             </div>
             {error && (
@@ -138,8 +139,9 @@ export default function SignUp() {
             <button
               type="submit"
               className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              disabled={isLoading}
             >
-              Create Account
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
 
@@ -157,6 +159,7 @@ export default function SignUp() {
           <button
             onClick={handleGoogleSignUp}
             className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            disabled={isLoading}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285f4" />

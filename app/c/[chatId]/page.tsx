@@ -1,3 +1,5 @@
+'use client';
+
 // app/c/[chatId]/page.tsx
 import { MainContent } from '@/components/MainContent';
 

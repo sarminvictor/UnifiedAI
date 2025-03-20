@@ -1,102 +1,95 @@
-import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import prisma from '@/lib/prismaClient';
-import { APIError, errorResponse } from '@/lib/api-helpers';
+import stripeClient from '@/utils/subscriptions/stripe';
+import { logWebhookEvent } from '@/utils/subscriptions/webhookLogger';
+import { handleCheckoutCompleted, handleSubscriptionUpdated, handleSubscriptionDeleted } from '@/handlers/subscriptions';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-02-24.acacia',
-});
+// Type for active subscription IDs
+type ActiveSubscriptionId = {
+    id: string;
+    stripeId: string;
+};
 
-// New route segment config for Next.js 14
-export const runtime = 'nodejs';
+// Disable body parsing, needed for Stripe webhook
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const runtime = 'nodejs';
+export const preferredRegion = 'auto';
 
-export async function POST(req: Request) {
-    try {
-        const body = await req.text();
-        const signature = headers().get('stripe-signature');
+// Event deduplication tracking
+const processedEvents = new Set<string>();
+const DEBOUNCE_TIMEOUT = 5000; // 5 seconds
 
-        if (!signature) {
-            throw new APIError(400, 'No signature found');
-        }
-
-        const event = stripe.webhooks.constructEvent(
-            body,
-            signature,
-            process.env.STRIPE_WEBHOOK_SECRET!
-        );
-
-        switch (event.type) {
-            case 'checkout.session.completed': {
-                const session = event.data.object as Stripe.Checkout.Session;
-                const userId = session.metadata?.userId;
-                const subscriptionId = session.subscription as string;
-
-                if (!userId) {
-                    throw new APIError(400, 'No user ID found in session');
-                }
-
-                // Create subscription record
-                await prisma.subscription.create({
-                    data: {
-                        subscription_id: subscriptionId,
-                        user_id: userId,
-                        plan_id: session.metadata?.planId || 'default-plan',
-                        start_date: new Date(),
-                        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-                        status: 'active',
-                        payment_status: 'paid',
-                        stripe_info: `active | ${session.customer} | ${session.metadata?.productId}`,
-                        stripe_payment_id: session.payment_intent as string,
-                    },
-                });
-
-                // Update user's credits
-                await prisma.user.update({
-                    where: { id: userId },
-                    data: {
-                        credits_remaining: '1000',
-                    },
-                });
-
-                break;
-            }
-
-            case 'customer.subscription.updated':
-            case 'customer.subscription.deleted': {
-                const subscription = event.data.object as Stripe.Subscription;
-                const userId = subscription.metadata?.userId;
-
-                if (!userId) {
-                    throw new APIError(400, 'No user ID found in subscription');
-                }
-
-                // Update subscription status
-                await prisma.subscription.update({
-                    where: { subscription_id: subscription.id },
-                    data: {
-                        status: subscription.status,
-                        payment_status: subscription.status === 'active' ? 'paid' : 'cancelled',
-                        end_date: new Date(subscription.current_period_end * 1000),
-                    },
-                });
-
-                break;
-            }
-        }
-
-        return NextResponse.json({ received: true });
-    } catch (error) {
-        console.error('Webhook error:', error);
-        return errorResponse(error);
-    }
+if (!stripeClient || !process.env.STRIPE_WEBHOOK_SECRET) {
+    throw new Error('Missing Stripe configuration');
 }
 
-export const config = {
-    api: { bodyParser: false }
-};
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.text();
+        const sig = headers().get('stripe-signature');
+
+        if (!sig) {
+            return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+        }
+
+        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+        if (!webhookSecret) {
+            console.error('Missing webhook secret');
+            return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        }
+
+        // Use a non-null assertion since we checked stripeClient at the module level
+        const event = stripeClient!.webhooks.constructEvent(
+            body,
+            sig,
+            webhookSecret
+        );
+
+        const eventId = `${event.type}-${event.id}`;
+
+        if (processedEvents.has(eventId)) {
+            console.log('🔄 Skipping duplicate event:', eventId);
+            return NextResponse.json({ received: true, skipped: true });
+        }
+
+        processedEvents.add(eventId);
+        setTimeout(() => processedEvents.delete(eventId), DEBOUNCE_TIMEOUT);
+
+        console.log('Processing webhook event:', event.type, eventId);
+
+        switch (event.type) {
+            case 'checkout.session.completed':
+                await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+                break;
+            case 'customer.subscription.updated':
+                await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+                break;
+            case 'customer.subscription.deleted':
+                await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+                break;
+            case 'invoice.created':
+            case 'invoice.finalized':
+            case 'invoice.updated':
+            case 'invoice.paid':
+            case 'invoice.payment_succeeded':
+                // These events are expected and can be safely ignored
+                console.log(`📋 Processing invoice event: ${event.type}`);
+                break;
+            default:
+                console.log(`⚠️ Unhandled event type: ${event.type}`);
+        }
+
+        return NextResponse.json({ received: true, eventId, type: event.type });
+    } catch (err) {
+        console.error('❌ Webhook error:', err);
+        return NextResponse.json(
+            { error: err instanceof Error ? err.message : 'Unknown error' },
+            { status: 400 }
+        );
+    }
+}
 
 export const GET = async () => {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });

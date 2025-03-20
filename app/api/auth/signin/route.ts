@@ -7,9 +7,11 @@ const prisma = new PrismaClient();
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
+    const normalizedEmail = email.toLowerCase();
 
+    // Find user by email
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email: normalizedEmail }
     });
 
     if (!user || !user.password) {
@@ -19,6 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Verify password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return NextResponse.json(
@@ -27,11 +30,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Return user info (without password) for the session
     return NextResponse.json({
       id: user.id,
-      email: user.email
+      email: user.email,
+      name: user.name || null,
+      credits_remaining: user.credits_remaining || "0"
     });
   } catch (error) {
+    console.error('Signin API error:', error);
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }

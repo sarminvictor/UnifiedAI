@@ -3,6 +3,9 @@ import prisma from "@/lib/prismaClient";
 import { getServerSession } from "@/lib/auth";
 import stripe from "@/utils/subscriptions/stripe";
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession();

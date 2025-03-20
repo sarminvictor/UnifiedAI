@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth.config';
 import prisma from '@/lib/prismaClient';
 import { ModelName } from '@/types/ai.types';
 import { DEFAULT_BRAINSTORM_SETTINGS, BrainstormSettings } from '@/types/chat/settings';
 import { Prisma } from '@prisma/client';
+
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
 
 const generateSummary = (messages: any[]): string => {
   if (messages.length === 0) return "New Chat";

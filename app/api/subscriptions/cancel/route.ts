@@ -4,6 +4,9 @@ import { getServerSession } from "@/lib/auth";
 import stripe from "@/utils/subscriptions/stripe";
 import { sendSubscriptionUpdate } from "@/utils/sse";
 
+// Mark this route as dynamic to avoid static generation errors
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession();

@@ -11,6 +11,11 @@ type ActiveSubscriptionId = {
     stripeId: string;
 };
 
+// Disable body parsing, needed for Stripe webhook
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const preferredRegion = 'auto';
+
 // Event deduplication tracking
 const processedEvents = new Set<string>();
 const DEBOUNCE_TIMEOUT = 5000; // 5 seconds
@@ -85,10 +90,6 @@ export async function POST(request: NextRequest) {
         );
     }
 }
-
-export const config = {
-    api: { bodyParser: false }
-};
 
 export const GET = async () => {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });

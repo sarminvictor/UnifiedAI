@@ -60,17 +60,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Redirect authenticated users away from auth routes to the app
+  if (token && isAuthRoute) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Allow access to auth routes without redirection for unauthenticated users
+  if (!token && isAuthRoute) {
+    return NextResponse.next();
+  }
+
   // Redirect unauthenticated users to signin for all protected routes
   if (!token && !isAuthRoute && !isPublicRoute) {
     // Save the original URL as the callback URL
     const signInUrl = new URL('/auth/signin', request.url);
     signInUrl.searchParams.set('callbackUrl', request.url);
     return NextResponse.redirect(signInUrl);
-  }
-
-  // Redirect authenticated users away from auth routes to the app
-  if (token && isAuthRoute) {
-    return NextResponse.redirect(new URL('/', request.url));
   }
 
   // Handle subscription-related routes

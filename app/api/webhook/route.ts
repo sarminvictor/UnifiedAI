@@ -1,73 +1,43 @@
-import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import prisma from '@/lib/prismaClient';
-import { APIError, errorResponse } from '@/lib/api-helpers';
+import { APIError } from '@/lib/api-helpers';
+import { validateStripeWebhook } from '@/utils/stripe-webhook';
 
+// Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2025-02-24.acacia',
 });
 
-// Next.js 14 route segment config
+// Next.js 14 route segment config - important for webhooks
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 export const maxDuration = 60;
-export const fetchCache = 'force-no-store';
 
-// This is important for Next.js to properly handle the raw request
-export async function POST(req: Request) {
-    console.log('Webhook endpoint hit', {
-        method: req.method,
+export async function POST(req: NextRequest) {
+    console.log('Webhook request received', {
         url: req.url,
-        headers: Object.fromEntries([...req.headers.entries()].map(([k, v]) => [k, k === 'stripe-signature' ? 'present' : v])),
+        contentType: req.headers.get('content-type'),
+        hasSignature: !!req.headers.get('stripe-signature')
     });
 
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+        console.error('STRIPE_WEBHOOK_SECRET is not configured');
+        return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    }
+
     try {
-        // Get the raw request body as text
-        const rawBody = await req.text();
+        // Use our utility to validate the webhook with raw body handling
+        const event = await validateStripeWebhook(
+            req,
+            stripe,
+            process.env.STRIPE_WEBHOOK_SECRET
+        );
 
-        // Log the received payload length for debugging
-        console.log('Received webhook payload', {
-            contentType: req.headers.get('content-type'),
-            hasSignature: !!headers().get('stripe-signature'),
-            bodyLength: rawBody.length,
-            bodyPreview: rawBody.substring(0, 50) + '...'
-        });
-
-        const signature = headers().get('stripe-signature');
-
-        if (!signature) {
-            console.error('No Stripe signature found in request headers');
-            return NextResponse.json({ error: 'No signature found' }, { status: 400 });
-        }
-
-        if (!process.env.STRIPE_WEBHOOK_SECRET) {
-            console.error('STRIPE_WEBHOOK_SECRET is not configured');
-            return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
-        }
-
-        console.log('Verifying webhook signature', {
-            signatureLength: signature.length,
-            webhookSecretConfigured: !!process.env.STRIPE_WEBHOOK_SECRET
-        });
-
-        let event;
-        try {
-            event = stripe.webhooks.constructEvent(
-                rawBody,
-                signature,
-                process.env.STRIPE_WEBHOOK_SECRET
-            );
-        } catch (err: any) {
-            console.error('Webhook signature verification failed:', err.message, {
-                error: err,
-                signatureHeader: signature
-            });
-            return NextResponse.json(
-                { error: `Webhook signature verification failed: ${err.message}` },
-                { status: 400 }
-            );
+        if (!event) {
+            return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
         }
 
         console.log(`Processing webhook event: ${event.type}`, { id: event.id });

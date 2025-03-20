@@ -45,6 +45,16 @@ const nextConfig = {
     },
     poweredByHeader: false,
 
+    // Disable static generation for specific paths
+    modularizeImports: {
+        'sonner': {
+            transform: 'sonner/{{member}}'
+        },
+        '@geist-ui/core': {
+            transform: '@geist-ui/core/{{member}}'
+        }
+    },
+
     async rewrites() {
         return [
             {

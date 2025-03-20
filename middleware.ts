@@ -22,7 +22,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/') ||
     pathname.startsWith('/api/debug/') ||
-    pathname === '/favicon.ico'
+    pathname === '/favicon.ico' ||
+    pathname.startsWith('/static/')
   ) {
     return NextResponse.next();
   }
@@ -46,7 +47,9 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     pathname === '/' ||
     pathname.startsWith('/api/public/') ||
-    pathname.startsWith('/api/webhooks/');
+    pathname.startsWith('/api/webhooks/') ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/static/');
 
   // Allow authenticated users to access payment routes
   if (isPaymentRoute && token) {
@@ -122,7 +125,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public (public files)
+     * - static (static files)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|static).*)',
   ],
 };

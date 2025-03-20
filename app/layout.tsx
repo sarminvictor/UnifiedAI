@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { Providers } from '../lib/providers';
+import { Providers } from './providers';
 import 'styles/globals.css';
 import { Toaster } from 'sonner';
 import { getSession } from 'next-auth/react';

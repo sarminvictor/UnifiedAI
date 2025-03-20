@@ -4,6 +4,7 @@ import prisma from '@/lib/prismaClient';
 import bcrypt from 'bcryptjs';
 import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
+import { UserService } from '@/services/db/userService';
 
 // Custom logger for auth errors
 const authLogger = {
@@ -92,22 +93,24 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!existingUser) {
-            // Create new user for Google auth
-            const userData: any = {
-              email: profile.email.toLowerCase(),
-              name: profile.name ?? '',
-              password: '', // No password for Google users
-              credits_remaining: '5', // Default starting credits
-            };
+            // Create new user for Google auth with free subscription
+            const hashedPassword = ''; // No password for Google users
+            const newUser = await UserService.createUser(
+              profile.email.toLowerCase(),
+              hashedPassword,
+              profile.name
+            );
 
-            // Add image if available
+            // If profile has picture, update the user
             if (profile?.picture) {
-              userData.image = profile.picture;
+              await prisma.user.update({
+                where: { id: newUser.id },
+                data: {
+                  // Use type assertion to handle the image property
+                  image: profile.picture as string
+                } as any
+              });
             }
-
-            const newUser = await prisma.user.create({
-              data: userData,
-            });
 
             // Update the user object with our new user's ID
             user.id = newUser.id;
@@ -116,18 +119,23 @@ export const authOptions: NextAuthOptions = {
             user.id = existingUser.id;
 
             // Optionally update the user's profile information if needed
-            if (profile.name && !existingUser.name) {
-              const updateData: any = { name: profile.name };
+            if ((profile.name && !existingUser.name) || (profile.picture && !existingUser.image)) {
+              const updateData: any = {};
 
-              // Add image if available
-              if (profile.picture) {
+              if (profile.name && !existingUser.name) {
+                updateData.name = profile.name;
+              }
+
+              if (profile.picture && !existingUser.image) {
                 updateData.image = profile.picture;
               }
 
-              await prisma.user.update({
-                where: { id: existingUser.id },
-                data: updateData
-              });
+              if (Object.keys(updateData).length > 0) {
+                await prisma.user.update({
+                  where: { id: existingUser.id },
+                  data: updateData
+                });
+              }
             }
           }
         }

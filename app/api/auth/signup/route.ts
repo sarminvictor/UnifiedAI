@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { type NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prismaClient';
+import { UserService } from '@/services/db/userService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,18 +31,10 @@ export async function POST(request: NextRequest) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create the user with normalized email
-    const user = await prisma.user.create({
-      data: {
-        email: normalizedEmail,
-        password: hashedPassword,
-        credits_remaining: "0",
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    });
+    // Create the user with normalized email and free subscription
+    const user = await UserService.createUser(normalizedEmail, hashedPassword);
 
-    console.log('User created successfully:', normalizedEmail);
+    console.log('User created successfully with free subscription:', normalizedEmail);
     return NextResponse.json({
       id: user.id,
       email: user.email,

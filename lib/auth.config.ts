@@ -97,7 +97,7 @@ export const authOptions: NextAuthOptions = {
               email: profile.email.toLowerCase(),
               name: profile.name ?? '',
               password: '', // No password for Google users
-              credits_remaining: '50', // Default starting credits
+              credits_remaining: '5', // Default starting credits
             };
 
             // Add image if available

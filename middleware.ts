@@ -45,7 +45,6 @@ export async function middleware(request: NextRequest) {
 
   // Define public routes that don't require authentication
   const isPublicRoute =
-    pathname === '/' ||
     pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/webhooks/') ||
     pathname.startsWith('/_next/') ||

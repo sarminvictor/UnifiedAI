@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export default function PaymentFailed() {
+function PaymentFailedContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const fromStripe = searchParams.get('from') === 'stripe';
@@ -53,5 +53,21 @@ export default function PaymentFailed() {
                 />
             </div>
         </div>
+    );
+}
+
+export default function PaymentFailed() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-6">
+                <h1 className="text-3xl font-bold mb-6 text-red-600">Payment Failed</h1>
+                <p className="text-gray-600 mb-8">Loading payment details...</p>
+                <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 animate-pulse" style={{ width: '20%' }} />
+                </div>
+            </div>
+        }>
+            <PaymentFailedContent />
+        </Suspense>
     );
 } 

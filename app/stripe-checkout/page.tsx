@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function MockCheckout() {
+function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planId = searchParams.get("planId");
@@ -34,5 +35,18 @@ export default function MockCheckout() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function MockCheckout() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-6">
+        <h1 className="text-3xl font-bold mb-6">Checkout</h1>
+        <p className="text-gray-600 mb-6">Loading checkout information...</p>
+      </div>
+    }>
+      <CheckoutContent />
+    </Suspense>
   );
 }

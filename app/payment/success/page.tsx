@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export default function PaymentSuccess() {
+function PaymentSuccessContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [progress, setProgress] = useState(0);
@@ -54,5 +54,21 @@ export default function PaymentSuccess() {
                 />
             </div>
         </div>
+    );
+}
+
+export default function PaymentSuccess() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-6">
+                <h1 className="text-3xl font-bold mb-6">Payment Success</h1>
+                <p className="text-gray-600 mb-8">Loading payment details...</p>
+                <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 animate-pulse" style={{ width: '20%' }} />
+                </div>
+            </div>
+        }>
+            <PaymentSuccessContent />
+        </Suspense>
     );
 } 

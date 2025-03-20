@@ -248,104 +248,111 @@ class StreamingService {
                     if (line.startsWith('data: ')) {
                         const data = line.substring(6);
                         if (data === '[DONE]') {
-                            // Stream is done
-                            logger.debug('Received [DONE] event:', { chatId });
+                            logger.debug('Stream complete signal received:', { chatId });
                             continue;
                         }
 
                         try {
-                            // Parse the JSON data
                             const event = JSON.parse(data);
+                            logger.debug('Parsed stream event:', {
+                                chatId,
+                                eventType: event.event,
+                                dataId: event.data?.id || 'unknown'
+                            });
 
-                            // Safety check for essential fields
-                            if (!event || (!event.type && !event.event)) {
-                                logger.warn('Received invalid stream event (missing type/event):', {
-                                    chatId,
-                                    data: data.substring(0, 100)
-                                });
-                                continue;
-                            }
-
-                            if (!event.data) {
-                                logger.warn('Received stream event with missing data field:', {
-                                    chatId,
-                                    eventType: event.type || event.event
-                                });
-                                event.data = {}; // Provide empty data object to prevent errors
-                            }
-
-                            // Process the event
                             this.handleStreamEvent(chatId, event);
                             eventCount++;
 
-                            // If this is a token event, increment the token count
-                            if ((event.type === 'token' || event.event === 'token') && event.data.token) {
+                            // Count tokens
+                            if (event.event === 'token' && event.data?.token) {
                                 tokenCount++;
                             }
                         } catch (error) {
                             logger.error('Error parsing stream event:', {
-                                chatId,
-                                error: error instanceof Error ? error.message : String(error),
-                                data: data.substring(0, 100),
-                                line: line.substring(0, 100)
+                                line,
+                                error,
+                                lineLength: line.length,
+                                linePreview: line.length > 100 ? line.substring(0, 100) + '...' : line
                             });
                         }
-                    }
-                }
-            }
-
-            // Process any remaining data in the buffer
-            if (buffer.trim() !== '') {
-                logger.debug('Processing remaining buffer data:', {
-                    chatId,
-                    bufferLength: buffer.length,
-                    buffer: buffer.length > 100 ? buffer.substring(0, 100) + '...' : buffer
-                });
-
-                if (buffer.startsWith('data: ')) {
-                    const data = buffer.substring(6);
-                    if (data !== '[DONE]') {
+                    } else {
+                        // Try to parse the line directly as JSON
                         try {
-                            // Parse the JSON data
-                            const event = JSON.parse(data);
-
-                            // Safety check for essential fields
-                            if (!event || (!event.type && !event.event)) {
-                                logger.warn('Received invalid stream event (missing type/event) in final buffer:', {
+                            const event = JSON.parse(line);
+                            if (event.event && event.data) {
+                                logger.debug('Parsed direct JSON event:', {
                                     chatId,
-                                    data: data.substring(0, 100)
+                                    eventType: event.event,
+                                    dataId: event.data?.id || 'unknown'
                                 });
-                            } else {
-                                if (!event.data) {
-                                    logger.warn('Received stream event with missing data field in final buffer:', {
-                                        chatId,
-                                        eventType: event.type || event.event
-                                    });
-                                    event.data = {}; // Provide empty data object to prevent errors
-                                }
 
-                                // Process the event
                                 this.handleStreamEvent(chatId, event);
                                 eventCount++;
 
-                                // If this is a token event, increment the token count
-                                if ((event.type === 'token' || event.event === 'token') && event.data.token) {
+                                // Count tokens
+                                if (event.event === 'token' && event.data?.token) {
                                     tokenCount++;
                                 }
+                            } else {
+                                logger.debug('Received non-event JSON line:', { line });
                             }
                         } catch (error) {
-                            logger.error('Error parsing final stream event:', {
-                                chatId,
-                                error: error instanceof Error ? error.message : String(error),
-                                data: data.substring(0, 100)
+                            logger.debug('Received non-data line (not JSON):', {
+                                line,
+                                lineLength: line.length,
+                                linePreview: line.length > 100 ? line.substring(0, 100) + '...' : line
                             });
                         }
                     }
                 }
             }
 
-            // Return event and token counts
-            return { eventCount, tokenCount };
+            // If there's anything left in the buffer, try to process it
+            if (buffer.trim()) {
+                logger.debug('Processing remaining buffer:', {
+                    bufferLength: buffer.length,
+                    bufferPreview: buffer.length > 100 ? buffer.substring(0, 100) + '...' : buffer
+                });
+
+                try {
+                    if (buffer.startsWith('data: ')) {
+                        const data = buffer.substring(6);
+                        if (data !== '[DONE]') {
+                            const event = JSON.parse(data);
+                            this.handleStreamEvent(chatId, event);
+                            eventCount++;
+                        }
+                    } else {
+                        // Try to parse the buffer directly as JSON
+                        try {
+                            const event = JSON.parse(buffer);
+                            if (event.event && event.data) {
+                                logger.debug('Parsed remaining buffer as JSON event:', {
+                                    eventType: event.event,
+                                    dataId: event.data?.id || 'unknown'
+                                });
+
+                                this.handleStreamEvent(chatId, event);
+                                eventCount++;
+                            } else {
+                                logger.debug('Remaining buffer is not an event:', { buffer });
+                            }
+                        } catch (error) {
+                            logger.debug('Remaining buffer is not valid JSON:', { buffer });
+                        }
+                    }
+                } catch (error) {
+                    logger.error('Error parsing final buffer:', { buffer, error });
+                }
+            }
+
+            // Log completion
+            logger.debug('Stream reading complete:', {
+                chatId,
+                eventCount,
+                tokenCount,
+                bufferLength: buffer.length
+            });
         } catch (error: unknown) {
             if (error instanceof Error && error.name === 'AbortError') {
                 logger.debug('Stream fetch aborted:', { chatId });
@@ -359,6 +366,12 @@ class StreamingService {
                 throw error;
             }
         }
+
+        // Return the final counts
+        return {
+            eventCount,
+            tokenCount
+        };
     }
 
     /**
@@ -639,258 +652,242 @@ class StreamingService {
      */
     private handleStreamEvent(chatId: string, event: any) {
         // Log the received event for debugging
-        const eventType = event.type || event.event;
+        logger.debug('Processing stream event:', {
+            chatId,
+            eventType: event.event,
+            dataId: event.data?.id,
+            dataLength: JSON.stringify(event.data).length
+        });
 
-        if (eventType !== 'token') {
-            logger.debug('Stream event:', {
-                type: eventType,
-                chatId,
-                data: event.data
-            });
-        }
+        // Get the store dispatch function
+        const dispatch = useChatStore.getState().dispatch;
 
-        // Get the dispatch function from the store
-        const { dispatch } = (window as any).__CHAT_STORE__?.getState() || { dispatch: null };
-        if (!dispatch) {
-            logger.error('Store dispatch function not found in handleStreamEvent');
-            return;
-        }
+        // Handle different event types
+        switch (event.event) {
+            case 'messageStart':
+                // Log the message start event
+                logger.debug('Message start event:', {
+                    chatId,
+                    messageId: event.data.id,
+                    model: event.data.model
+                });
 
-        try {
-            switch (eventType) {
-                case 'messageStart':
-                    logger.debug('Message start event received:', { chatId, messageId: event.data.id });
-
-                    // Start a new streaming message in the store
-                    dispatch({
-                        type: 'START_STREAMING_MESSAGE',
-                        payload: {
-                            chatId,
-                            messageId: event.data.id,
-                            model: event.data.model || 'gpt-3.5-turbo'
-                        }
-                    });
-
-                    // Dispatch custom event for legacy code
-                    window.dispatchEvent(new CustomEvent('messageStart', {
-                        detail: {
-                            chatId,
-                            data: event.data
-                        }
-                    }));
-                    break;
-
-                case 'token':
-                    // Skip logging for token events to reduce noise
-                    // logger.debug('Token event:', { chatId, messageId: event.data.id, sequence: event.data.sequence });
-
-                    // Validate token data before updating
-                    if (!event.data || !event.data.id) {
-                        logger.warn('Invalid token event data:', { chatId, data: event.data });
-                        break;
-                    }
-
-                    // Update the streaming message in the store
-                    dispatch({
-                        type: 'UPDATE_STREAMING_MESSAGE',
-                        payload: {
-                            chatId,
-                            messageId: event.data.id,
-                            token: event.data.token || '',
-                            sequence: event.data.sequence || 0
-                        }
-                    });
-
-                    // Dispatch the token event
-                    window.dispatchEvent(new CustomEvent('token', {
-                        detail: {
-                            chatId,
-                            data: event.data
-                        }
-                    }));
-                    break;
-
-                case 'messageComplete':
-                    // Log the message complete event
-                    logger.debug('Message complete event:', {
+                // Update the store directly
+                dispatch({
+                    type: 'START_STREAMING_MESSAGE',
+                    payload: {
                         chatId,
                         messageId: event.data.id,
-                        textLength: event.data.text?.length || 0,
-                        credits: event.data.credits,
-                        creditsDeducted: event.data.creditsDeducted,
                         model: event.data.model
-                    });
-
-                    // Skip if the message is empty
-                    if (!event.data.text) {
-                        logger.debug('Skipping empty message:', {
-                            chatId,
-                            messageId: event.data.id
-                        });
-                        break;
                     }
+                });
 
-                    // Ensure we have a credits value (prioritize creditsDeducted over credits)
-                    const creditsValue = event.data.creditsDeducted || event.data.credits || '0';
+                // Also dispatch to window for compatibility with existing code
+                window.dispatchEvent(new CustomEvent('messageStart', {
+                    detail: {
+                        chatId,
+                        data: event.data
+                    }
+                }));
+                break;
 
-                    // Update the store directly
-                    dispatch({
-                        type: 'COMPLETE_STREAMING_MESSAGE',
-                        payload: {
-                            chatId,
-                            messageId: event.data.id,
-                            finalText: event.data.text,
-                            credits: creditsValue
-                        }
-                    });
+            case 'token':
+                // Skip logging for token events to reduce noise
+                // logger.debug('Token event:', { chatId, messageId: event.data.id, sequence: event.data.sequence });
 
-                    // Also dispatch to window for compatibility with existing code
-                    // Make sure we include both credits and creditsDeducted in the event data
-                    const eventData = {
-                        ...event.data,
-                        credits: creditsValue,
-                        creditsDeducted: creditsValue
-                    };
+                // Update the streaming message in the store
+                dispatch({
+                    type: 'UPDATE_STREAMING_MESSAGE',
+                    payload: {
+                        chatId,
+                        messageId: event.data.id,
+                        token: event.data.token,
+                        sequence: event.data.sequence
+                    }
+                });
 
-                    window.dispatchEvent(new CustomEvent('messageComplete', {
-                        detail: {
-                            chatId,
-                            data: eventData
-                        }
-                    }));
+                // Dispatch the token event
+                window.dispatchEvent(new CustomEvent('token', {
+                    detail: {
+                        chatId,
+                        data: event.data
+                    }
+                }));
+                break;
 
-                    // After a delay, remove the streaming message from the store
-                    // This helps prevent duplicate messages when switching tabs
-                    setTimeout(() => {
-                        dispatch({
-                            type: 'REMOVE_STREAMING_MESSAGE',
-                            payload: {
-                                chatId,
-                                messageId: event.data.id
-                            }
-                        });
-                    }, 5000);
-                    break;
+            case 'messageComplete':
+                // Log the message complete event
+                logger.debug('Message complete event:', {
+                    chatId,
+                    messageId: event.data.id,
+                    textLength: event.data.text?.length || 0,
+                    credits: event.data.credits,
+                    creditsDeducted: event.data.creditsDeducted,
+                    model: event.data.model
+                });
 
-                case 'summaryStart':
-                    logger.debug('Summary start event:', {
+                // Skip if the message is empty
+                if (!event.data.text) {
+                    logger.debug('Skipping empty message:', {
                         chatId,
                         messageId: event.data.id
                     });
-
-                    // Add a streaming message to the store for the summary
-                    dispatch({
-                        type: 'START_STREAMING_MESSAGE',
-                        payload: {
-                            chatId,
-                            messageId: event.data.id,
-                            model: event.data.model
-                        }
-                    });
-
-                    this.dispatchEventOnce('summaryStart', {
-                        chatId,
-                        data: event.data
-                    }, `summaryStart-${event.data.id}`);
                     break;
+                }
 
-                case 'summaryComplete':
-                    logger.debug('Summary complete event:', {
+                // Ensure we have a credits value (prioritize creditsDeducted over credits)
+                const creditsValue = event.data.creditsDeducted || event.data.credits || '0';
+
+                // Update the store directly
+                dispatch({
+                    type: 'COMPLETE_STREAMING_MESSAGE',
+                    payload: {
                         chatId,
                         messageId: event.data.id,
-                        textLength: event.data.text?.length || 0,
-                        credits: event.data.credits,
-                        creditsDeducted: event.data.creditsDeducted
-                    });
+                        finalText: event.data.text,
+                        credits: creditsValue
+                    }
+                });
 
-                    // Ensure we have a credits value (prioritize creditsDeducted over credits)
-                    const summaryCreditsValue = event.data.creditsDeducted || event.data.credits || '0';
+                // Also dispatch to window for compatibility with existing code
+                // Make sure we include both credits and creditsDeducted in the event data
+                const eventData = {
+                    ...event.data,
+                    credits: creditsValue,
+                    creditsDeducted: creditsValue
+                };
 
-                    // Complete the streaming message in the store
+                window.dispatchEvent(new CustomEvent('messageComplete', {
+                    detail: {
+                        chatId,
+                        data: eventData
+                    }
+                }));
+
+                // After a delay, remove the streaming message from the store
+                // This helps prevent duplicate messages when switching tabs
+                setTimeout(() => {
                     dispatch({
-                        type: 'COMPLETE_STREAMING_MESSAGE',
+                        type: 'REMOVE_STREAMING_MESSAGE',
                         payload: {
                             chatId,
-                            messageId: event.data.id,
-                            finalText: event.data.text,
-                            credits: summaryCreditsValue
+                            messageId: event.data.id
                         }
                     });
+                }, 5000);
+                break;
 
-                    // Make sure we include both credits and creditsDeducted in the event data
-                    const summaryEventData = {
-                        ...event.data,
-                        credits: summaryCreditsValue,
-                        creditsDeducted: summaryCreditsValue
-                    };
+            case 'summaryStart':
+                logger.debug('Summary start event:', {
+                    chatId,
+                    messageId: event.data.id
+                });
 
-                    this.dispatchEventOnce('summaryComplete', {
-                        chatId,
-                        data: summaryEventData
-                    }, `summaryComplete-${event.data.id}`);
-
-                    // After a delay, remove the streaming message from the store
-                    setTimeout(() => {
-                        dispatch({
-                            type: 'REMOVE_STREAMING_MESSAGE',
-                            payload: {
-                                chatId,
-                                messageId: event.data.id
-                            }
-                        });
-                    }, 5000);
-                    break;
-
-                case 'brainstormComplete':
-                    logger.debug('Brainstorm complete event:', {
+                // Add a streaming message to the store for the summary
+                dispatch({
+                    type: 'START_STREAMING_MESSAGE',
+                    payload: {
                         chatId,
                         messageId: event.data.id,
-                        credits: event.data.credits,
-                        creditsDeducted: event.data.creditsDeducted
+                        model: event.data.model
+                    }
+                });
+
+                this.dispatchEventOnce('summaryStart', {
+                    chatId,
+                    data: event.data
+                }, `summaryStart-${event.data.id}`);
+                break;
+
+            case 'summaryComplete':
+                logger.debug('Summary complete event:', {
+                    chatId,
+                    messageId: event.data.id,
+                    textLength: event.data.text?.length || 0,
+                    credits: event.data.credits,
+                    creditsDeducted: event.data.creditsDeducted
+                });
+
+                // Ensure we have a credits value (prioritize creditsDeducted over credits)
+                const summaryCreditsValue = event.data.creditsDeducted || event.data.credits || '0';
+
+                // Complete the streaming message in the store
+                dispatch({
+                    type: 'COMPLETE_STREAMING_MESSAGE',
+                    payload: {
+                        chatId,
+                        messageId: event.data.id,
+                        finalText: event.data.text,
+                        credits: summaryCreditsValue
+                    }
+                });
+
+                // Make sure we include both credits and creditsDeducted in the event data
+                const summaryEventData = {
+                    ...event.data,
+                    credits: summaryCreditsValue,
+                    creditsDeducted: summaryCreditsValue
+                };
+
+                this.dispatchEventOnce('summaryComplete', {
+                    chatId,
+                    data: summaryEventData
+                }, `summaryComplete-${event.data.id}`);
+
+                // After a delay, remove the streaming message from the store
+                setTimeout(() => {
+                    dispatch({
+                        type: 'REMOVE_STREAMING_MESSAGE',
+                        payload: {
+                            chatId,
+                            messageId: event.data.id
+                        }
                     });
+                }, 5000);
+                break;
 
-                    // Ensure we have a credits value (prioritize creditsDeducted over credits)
-                    const brainstormCreditsValue = event.data.creditsDeducted || event.data.credits || '0';
+            case 'brainstormComplete':
+                logger.debug('Brainstorm complete event:', {
+                    chatId,
+                    messageId: event.data.id,
+                    credits: event.data.credits,
+                    creditsDeducted: event.data.creditsDeducted
+                });
 
-                    // Make sure we include both credits and creditsDeducted in the event data
-                    const brainstormEventData = {
-                        ...event.data,
-                        credits: brainstormCreditsValue,
-                        creditsDeducted: brainstormCreditsValue
-                    };
+                // Ensure we have a credits value (prioritize creditsDeducted over credits)
+                const brainstormCreditsValue = event.data.creditsDeducted || event.data.credits || '0';
 
-                    this.dispatchEventOnce('brainstormComplete', {
-                        chatId,
-                        data: brainstormEventData
-                    }, `brainstormComplete-${event.data.id}`);
-                    break;
+                // Make sure we include both credits and creditsDeducted in the event data
+                const brainstormEventData = {
+                    ...event.data,
+                    credits: brainstormCreditsValue,
+                    creditsDeducted: brainstormCreditsValue
+                };
 
-                case 'status':
-                    logger.debug('Status event:', {
-                        chatId,
-                        status: event.data.status,
-                        message: event.data.message
-                    });
-                    this.dispatchEventOnce('status', {
-                        chatId,
-                        data: event.data
-                    }, `status-${chatId}-${Date.now()}`);
-                    break;
+                this.dispatchEventOnce('brainstormComplete', {
+                    chatId,
+                    data: brainstormEventData
+                }, `brainstormComplete-${event.data.id}`);
+                break;
 
-                default:
-                    logger.warn('Unknown event type:', {
-                        chatId,
-                        eventType: eventType,
-                        data: event.data
-                    });
-            }
-        } catch (error) {
-            logger.error('Error handling stream event:', {
-                error: error instanceof Error ? error.message : String(error),
-                chatId,
-                eventType: eventType,
-                data: event.data
-            });
+            case 'status':
+                logger.debug('Status event:', {
+                    chatId,
+                    status: event.data.status,
+                    message: event.data.message
+                });
+                this.dispatchEventOnce('status', {
+                    chatId,
+                    data: event.data
+                }, `status-${chatId}-${Date.now()}`);
+                break;
+
+            default:
+                logger.warn('Unknown event type:', {
+                    chatId,
+                    eventType: event.event,
+                    data: event.data
+                });
         }
     }
 

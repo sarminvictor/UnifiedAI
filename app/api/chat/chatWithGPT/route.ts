@@ -312,38 +312,112 @@ async function handleBrainstormChat(
   });
 
   if (!lastUserMessage) {
-    throw new Error('User message not found');
+    // More detailed error for debugging
+    serverLogger.error('User message not found in database', {
+      chatId,
+      userMessage: userMessage?.substring(0, 50) + (userMessage?.length > 50 ? '...' : ''),
+      userMessageLength: userMessage?.length
+    });
+
+    // Try to save the message if it doesn't exist
+    try {
+      serverLogger.info('Attempting to save missing user message');
+      const savedMessage = await prisma.chatHistory.create({
+        data: {
+          chat_id: chatId,
+          user_input: userMessage,
+          api_response: '',
+          input_type: 'text',
+          output_type: 'brainstorm',
+          timestamp: new Date(),
+          context_id: '',
+          model: mainModel,
+          credits_deducted: '0', // Convert to string for DB
+        }
+      });
+
+      messageIds.push(savedMessage.history_id);
+      serverLogger.info('Successfully saved missing user message', {
+        messageId: savedMessage.history_id
+      });
+    } catch (saveError) {
+      serverLogger.error('Failed to save missing user message', {
+        error: saveError instanceof Error ? saveError.message : 'Unknown error',
+        stack: saveError instanceof Error ? saveError.stack : undefined
+      });
+      throw new Error('User message not found and could not be saved');
+    }
+  } else {
+    messageIds.push(lastUserMessage.history_id);
   }
 
-  messageIds.push(lastUserMessage.history_id);
-
   // Generate brainstorm responses
-  try {
-    // Alternate between models for the specified number of messages
-    for (let i = 0; i < brainstormSettings.messagesLimit; i++) {
+  for (let i = 0; i < brainstormSettings.messagesLimit; i++) {
+    try {
       // Determine which model to use for this iteration
       const currentModel = i % 2 === 0 ? mainModel : additionalModel;
       const currentLLM = i % 2 === 0 ? mainLLM : additionalLLM;
 
+      // Log status update instead of streaming
+      serverLogger.info(`Starting brainstorm generation #${i + 1}`, {
+        model: currentModel,
+        current: i + 1,
+        total: brainstormSettings.messagesLimit
+      });
+
+      // Log the input for debugging
+      serverLogger.info(`Preparing brainstorm input for response #${i + 1}:`, {
+        model: currentModel,
+        promptLength: brainstormSettings.customPrompt?.length || 0,
+        lastResponseLength: lastResponse?.length || 0,
+        lastResponsePreview: lastResponse?.substring(0, 50) + (lastResponse?.length > 50 ? '...' : '') || 'empty'
+      });
+
       // Create a chain with the current model
       const messages = [
-        new SystemMessage(brainstormSettings.customPrompt),
-        new HumanMessage(lastResponse)
+        new SystemMessage(brainstormSettings.customPrompt || BRAINSTORM_PROMPTS.DEFAULT_BRAINSTORM),
+        new HumanMessage(lastResponse || userMessage)
       ];
 
+      serverLogger.info(`Generating brainstorm response #${i + 1} with model:`, {
+        model: currentModel,
+        inputLength: lastResponse?.length || 0
+      });
+
+      // Get AI response
       const chain = new LLMChain({
         llm: currentLLM,
         prompt: ChatPromptTemplate.fromMessages(messages),
         verbose: false
       });
 
-      serverLogger.info(`Generating brainstorm response #${i + 1} with model:`, {
-        model: currentModel,
-        inputLength: lastResponse.length
-      });
+      // Wrap the LLM call in a try-catch for better error handling
+      let response;
+      try {
+        // Log immediately before the call
+        serverLogger.info(`Executing LLM chain for brainstorm #${i + 1}`, {
+          model: currentModel,
+          provider: i % 2 === 0 ? mainProvider : additionalProvider
+        });
 
-      // Get AI response
-      const response = await chain.call({ input: lastResponse });
+        response = await chain.call({ input: lastResponse });
+
+        // Log immediately after successful call
+        serverLogger.info(`Successfully generated response for brainstorm #${i + 1}`, {
+          model: currentModel,
+          responseLength: response?.text?.length || 0
+        });
+      } catch (llmError) {
+        serverLogger.error(`LLM error in brainstorm iteration ${i + 1}`, {
+          error: llmError instanceof Error ? llmError.message : 'Unknown error',
+          stack: llmError instanceof Error ? llmError.stack : undefined,
+          model: currentModel,
+          provider: i % 2 === 0 ? mainProvider : additionalProvider
+        });
+
+        // Try fallback text
+        response = { text: `Sorry, I encountered an error while generating this brainstorm response. Let's continue with the next response.` };
+      }
 
       if (!response.text) {
         throw new ServerError(
@@ -395,116 +469,140 @@ async function handleBrainstormChat(
       // Store the response for the next iteration and summary
       brainstormResponses.push(response.text);
       lastResponse = response.text;
-    }
-
-    // Generate summary after all brainstorm messages
-    serverLogger.info('Generating brainstorm summary with model:', {
-      model: summaryModel,
-      responsesCount: brainstormResponses.length
-    });
-
-    // Create summary prompt with all brainstorm responses
-    const summaryMessages = [
-      new SystemMessage(BRAINSTORM_PROMPTS.SUMMARY),
-      new HumanMessage(`Summarize the following brainstorming session that started with this user message: "${userMessage}"\n\nBrainstorming responses:\n${brainstormResponses.join('\n\n')}`)
-    ];
-
-    const summaryChain = new LLMChain({
-      llm: summaryLLM,
-      prompt: ChatPromptTemplate.fromMessages(summaryMessages),
-      verbose: false
-    });
-
-    // Get summary response
-    const summaryResponse = await summaryChain.call({ input: brainstormResponses.join('\n\n') });
-
-    if (!summaryResponse.text) {
-      throw new ServerError(
-        ServerErrorCodes.AI_PROCESSING_ERROR,
-        'Empty summary response from AI'
-      );
-    }
-
-    // Calculate tokens and credits for summary
-    const summaryTokenInfo = TokenCalculator.calculateMessageTokens(
-      brainstormResponses.join('\n\n'),
-      summaryResponse.text
-    );
-
-    const summaryCreditsDeducted = TokenCalculator.calculateCredits(
-      summaryModel,
-      parseInt(summaryTokenInfo.promptTokens),
-      parseInt(summaryTokenInfo.completionTokens)
-    );
-
-    // Add to total credits deducted
-    totalCreditsDeducted = totalCreditsDeducted.plus(new Decimal(summaryCreditsDeducted));
-
-    // Save the summary message to the database
-    const summaryMessage = await prisma.chatHistory.create({
-      data: {
-        chat_id: chatId,
-        user_input: '',
-        api_response: summaryResponse.text,
-        input_type: 'brainstorm',
-        output_type: 'summary',
-        timestamp: new Date(),
-        context_id: '',
-        model: summaryModel,
-        credits_deducted: summaryCreditsDeducted,
-      }
-    });
-
-    messageIds.push(summaryMessage.history_id);
-
-    // Log API usage for summary
-    await APIUsageService.logAPIUsage({
-      userId: user.id,
-      chatId,
-      modelName: summaryModel,
-      tokensUsed: summaryTokenInfo.totalTokens,
-      promptTokens: summaryTokenInfo.promptTokens,
-      completionTokens: summaryTokenInfo.completionTokens,
-      creditsDeducted: summaryCreditsDeducted,
-      messageIds: [summaryMessage.history_id]
-    });
-
-    // Update chat timestamp
-    await ChatService.updateTimestamp(chatId);
-
-    // Update user credits
-    const newCredits = currentCredits.minus(totalCreditsDeducted).toString();
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: { credits_remaining: newCredits }
-    });
-
-    return {
-      userMessage: lastUserMessage,
-      aiMessage: summaryMessage,
-      brainstormMessages: messageIds,
-      model: {
-        main: mainModel,
-        additional: additionalModel,
-        summary: summaryModel
-      },
-      creditsDeducted: totalCreditsDeducted.toString(),
-      credits_remaining: updatedUser.credits_remaining,
-      isBrainstorm: true
-    };
-
-  } catch (error) {
-    // If there's an error during brainstorming, update user credits for any successful calls
-    if (!totalCreditsDeducted.isZero()) {
-      const newCredits = currentCredits.minus(totalCreditsDeducted).toString();
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { credits_remaining: newCredits }
+    } catch (iterationError) {
+      // Handle errors in individual iterations separately so one failure doesn't stop the whole process
+      serverLogger.error(`Error in brainstorm iteration ${i + 1}`, {
+        error: iterationError instanceof Error ? iterationError.message : 'Unknown error',
+        stack: iterationError instanceof Error ? iterationError.stack : undefined
       });
-    }
 
-    throw error;
+      // Try to recover and continue with next iteration
+      try {
+        // Log error instead of streaming it
+        serverLogger.error(`Error in generation ${i + 1}: ${iterationError instanceof Error ? iterationError.message : 'Unknown error'}`, {
+          iteration: i
+        });
+
+        // Save a placeholder message to maintain the flow
+        await prisma.chatHistory.create({
+          data: {
+            chat_id: chatId,
+            user_input: lastResponse,
+            api_response: `[Error during brainstorm generation #${i + 1}]`,
+            input_type: 'brainstorm',
+            output_type: 'brainstorm',
+            timestamp: new Date(),
+            context_id: '',
+            model: i % 2 === 0 ? mainModel : additionalModel,
+            credits_deducted: '0', // Convert to string for DB
+          }
+        });
+
+        // Continue to next iteration
+        continue;
+      } catch (recoveryError) {
+        serverLogger.error('Failed to recover from iteration error', {
+          error: recoveryError instanceof Error ? recoveryError.message : 'Unknown error',
+        });
+      }
+    }
   }
+
+  // Generate summary after all brainstorm messages
+  serverLogger.info('Generating brainstorm summary with model:', {
+    model: summaryModel,
+    responsesCount: brainstormResponses.length
+  });
+
+  // Create summary prompt with all brainstorm responses
+  const summaryMessages = [
+    new SystemMessage(BRAINSTORM_PROMPTS.SUMMARY),
+    new HumanMessage(`Summarize the following brainstorming session that started with this user message: "${userMessage}"\n\nBrainstorming responses:\n${brainstormResponses.join('\n\n')}`)
+  ];
+
+  const summaryChain = new LLMChain({
+    llm: summaryLLM,
+    prompt: ChatPromptTemplate.fromMessages(summaryMessages),
+    verbose: false
+  });
+
+  // Get summary response
+  const summaryResponse = await summaryChain.call({ input: brainstormResponses.join('\n\n') });
+
+  if (!summaryResponse.text) {
+    throw new ServerError(
+      ServerErrorCodes.AI_PROCESSING_ERROR,
+      'Empty summary response from AI'
+    );
+  }
+
+  // Calculate tokens and credits for summary
+  const summaryTokenInfo = TokenCalculator.calculateMessageTokens(
+    brainstormResponses.join('\n\n'),
+    summaryResponse.text
+  );
+
+  const summaryCreditsDeducted = TokenCalculator.calculateCredits(
+    summaryModel,
+    parseInt(summaryTokenInfo.promptTokens),
+    parseInt(summaryTokenInfo.completionTokens)
+  );
+
+  // Add to total credits deducted
+  totalCreditsDeducted = totalCreditsDeducted.plus(new Decimal(summaryCreditsDeducted));
+
+  // Save the summary message to the database
+  const summaryMessage = await prisma.chatHistory.create({
+    data: {
+      chat_id: chatId,
+      user_input: '',
+      api_response: summaryResponse.text,
+      input_type: 'brainstorm',
+      output_type: 'summary',
+      timestamp: new Date(),
+      context_id: '',
+      model: summaryModel,
+      credits_deducted: summaryCreditsDeducted,
+    }
+  });
+
+  messageIds.push(summaryMessage.history_id);
+
+  // Log API usage for summary
+  await APIUsageService.logAPIUsage({
+    userId: user.id,
+    chatId,
+    modelName: summaryModel,
+    tokensUsed: summaryTokenInfo.totalTokens,
+    promptTokens: summaryTokenInfo.promptTokens,
+    completionTokens: summaryTokenInfo.completionTokens,
+    creditsDeducted: summaryCreditsDeducted,
+    messageIds: [summaryMessage.history_id]
+  });
+
+  // Update chat timestamp
+  await ChatService.updateTimestamp(chatId);
+
+  // Update user credits
+  const newCredits = currentCredits.minus(totalCreditsDeducted).toString();
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: { credits_remaining: newCredits }
+  });
+
+  return {
+    userMessage: lastUserMessage,
+    aiMessage: summaryMessage,
+    brainstormMessages: messageIds,
+    model: {
+      main: mainModel,
+      additional: additionalModel,
+      summary: summaryModel
+    },
+    creditsDeducted: totalCreditsDeducted.toString(),
+    credits_remaining: updatedUser.credits_remaining,
+    isBrainstorm: true
+  };
 }
 
 // Add streaming support for brainstorm mode
@@ -615,152 +713,293 @@ async function handleBrainstormChatWithStreaming(
       });
 
       if (!lastUserMessage) {
-        throw new Error('User message not found');
-      }
+        // More detailed error for debugging
+        serverLogger.error('User message not found in database for streaming brainstorm', {
+          chatId,
+          userMessage: userMessage?.substring(0, 50) + (userMessage?.length > 50 ? '...' : ''),
+          userMessageLength: userMessage?.length
+        });
 
-      messageIds.push(lastUserMessage.history_id);
+        // Send error status to client
+        const errorStatus = {
+          event: 'status',
+          data: {
+            status: 'error',
+            message: 'User message not found in database'
+          }
+        };
+        await writer.write(encoder.encode(JSON.stringify(errorStatus) + '\n'));
+
+        // Try to save the message if it doesn't exist
+        try {
+          serverLogger.info('Attempting to save missing user message for streaming brainstorm');
+          const savedMessage = await prisma.chatHistory.create({
+            data: {
+              chat_id: chatId,
+              user_input: userMessage,
+              api_response: '',
+              input_type: 'text',
+              output_type: 'brainstorm',
+              timestamp: new Date(),
+              context_id: '',
+              model: mainModel,
+              credits_deducted: '0', // Convert to string for DB
+            }
+          });
+
+          messageIds.push(savedMessage.history_id);
+          serverLogger.info('Successfully saved missing user message', {
+            messageId: savedMessage.history_id
+          });
+
+          // Update status
+          const successStatus = {
+            event: 'status',
+            data: {
+              status: 'recovered',
+              message: 'Recovered from error, continuing brainstorm'
+            }
+          };
+          await writer.write(encoder.encode(JSON.stringify(successStatus) + '\n'));
+        } catch (saveError) {
+          serverLogger.error('Failed to save missing user message', {
+            error: saveError instanceof Error ? saveError.message : 'Unknown error',
+            stack: saveError instanceof Error ? saveError.stack : undefined
+          });
+
+          // Send terminal error status
+          const fatalStatus = {
+            event: 'status',
+            data: {
+              status: 'fatal',
+              message: 'User message not found and could not be saved'
+            }
+          };
+          await writer.write(encoder.encode(JSON.stringify(fatalStatus) + '\n'));
+
+          // Close the writer
+          await writer.close();
+
+          throw new Error('User message not found and could not be saved');
+        }
+      } else {
+        messageIds.push(lastUserMessage.history_id);
+      }
 
       // Generate brainstorm responses
       for (let i = 0; i < brainstormSettings.messagesLimit; i++) {
-        // Determine which model to use for this iteration
-        const currentModel = i % 2 === 0 ? mainModel : additionalModel;
-        const currentLLM = i % 2 === 0 ? mainLLM : additionalLLM;
+        try {
+          // Determine which model to use for this iteration
+          const currentModel = i % 2 === 0 ? mainModel : additionalModel;
+          const currentLLM = i % 2 === 0 ? mainLLM : additionalLLM;
 
-        // Send status update
-        const statusUpdate = {
-          event: 'status',
-          data: {
-            status: 'generating',
-            message: `Generating response #${i + 1} with ${currentModel}...`,
-            current: i + 1,
-            total: brainstormSettings.messagesLimit
-          }
-        };
-        await writer.write(encoder.encode(JSON.stringify(statusUpdate) + '\n'));
+          // Send status update
+          const statusUpdate = {
+            event: 'status',
+            data: {
+              status: 'generating',
+              message: `Generating response #${i + 1} with ${currentModel}...`,
+              current: i + 1,
+              total: brainstormSettings.messagesLimit
+            }
+          };
+          await writer.write(encoder.encode(JSON.stringify(statusUpdate) + '\n'));
 
-        // Create a chain with the current model
-        const messages = [
-          new SystemMessage(brainstormSettings.customPrompt),
-          new HumanMessage(lastResponse)
-        ];
+          // Create a chain with the current model
+          const messages = [
+            new SystemMessage(brainstormSettings.customPrompt || BRAINSTORM_PROMPTS.DEFAULT_BRAINSTORM),
+            new HumanMessage(lastResponse || userMessage)
+          ];
 
-        serverLogger.info(`Generating brainstorm response #${i + 1} with model:`, {
-          model: currentModel,
-          inputLength: lastResponse.length
-        });
-
-        // Create a message ID for this response
-        const messageId = `brainstorm-${i + 1}-${Date.now()}`;
-
-        // Start message event
-        const startMessageEvent = {
-          event: 'messageStart',
-          data: {
-            id: messageId,
+          serverLogger.info(`Generating brainstorm response #${i + 1} with model:`, {
             model: currentModel,
-            index: i,
-            sequence: getNextSequence()
-          }
-        };
-        await writer.write(encoder.encode(JSON.stringify(startMessageEvent) + '\n'));
+            inputLength: lastResponse.length
+          });
 
-        // Get AI response
-        const chain = new LLMChain({
-          llm: currentLLM,
-          prompt: ChatPromptTemplate.fromMessages(messages),
-          verbose: false
-        });
+          // Create a message ID for this response
+          const messageId = `brainstorm-${i + 1}-${Date.now()}`;
 
-        // Simulate streaming by breaking the response into chunks
-        const response = await chain.call({ input: lastResponse });
-
-        if (!response.text) {
-          throw new ServerError(
-            ServerErrorCodes.AI_PROCESSING_ERROR,
-            `Empty response from AI in brainstorm iteration ${i + 1}`
-          );
-        }
-
-        // Stream the response text character by character
-        const text = response.text;
-        for (let j = 0; j < text.length; j++) {
-          const chunk = text[j];
-
-          // Send token update
-          const tokenUpdate = {
-            event: 'token',
+          // Start message event
+          const startMessageEvent = {
+            event: 'messageStart',
             data: {
               id: messageId,
-              token: chunk,
+              model: currentModel,
+              index: i,
               sequence: getNextSequence()
             }
           };
-          await writer.write(encoder.encode(JSON.stringify(tokenUpdate) + '\n'));
+          await writer.write(encoder.encode(JSON.stringify(startMessageEvent) + '\n'));
 
-          // Add a small delay to simulate typing
-          // Send every character with a small delay to create a smoother typing effect
-          // We don't need to delay every 5 characters, but every character for a more natural effect
-          await new Promise(resolve => setTimeout(resolve, 15));
+          // Get AI response
+          const chain = new LLMChain({
+            llm: currentLLM,
+            prompt: ChatPromptTemplate.fromMessages(messages),
+            verbose: false
+          });
+
+          // Simulate streaming by breaking the response into chunks
+          let response;
+          try {
+            // Log immediately before the call
+            serverLogger.info(`Executing LLM chain for brainstorm #${i + 1} with streaming`, {
+              model: currentModel,
+              provider: i % 2 === 0 ? mainProvider : additionalProvider
+            });
+
+            response = await chain.call({ input: lastResponse });
+
+            // Log immediately after successful call
+            serverLogger.info(`Successfully generated response for brainstorm #${i + 1}`, {
+              model: currentModel,
+              responseLength: response?.text?.length || 0
+            });
+          } catch (llmError) {
+            serverLogger.error(`LLM error in brainstorm iteration ${i + 1}`, {
+              error: llmError instanceof Error ? llmError.message : 'Unknown error',
+              stack: llmError instanceof Error ? llmError.stack : undefined,
+              model: currentModel,
+              provider: i % 2 === 0 ? mainProvider : additionalProvider
+            });
+
+            // Send error event
+            const errorEvent = {
+              event: 'error',
+              data: {
+                message: `Error in model ${currentModel}: ${llmError instanceof Error ? llmError.message : 'Unknown error'}`,
+                iteration: i
+              }
+            };
+            await writer.write(encoder.encode(JSON.stringify(errorEvent) + '\n'));
+
+            // Try fallback text
+            response = { text: `Sorry, I encountered an error while generating this brainstorm response. Let's continue with the next response.` };
+          }
+
+          if (!response.text) {
+            throw new ServerError(
+              ServerErrorCodes.AI_PROCESSING_ERROR,
+              `Empty response from AI in brainstorm iteration ${i + 1}`
+            );
+          }
+
+          // Stream the response text character by character
+          const text = response.text;
+          for (let j = 0; j < text.length; j++) {
+            const chunk = text[j];
+
+            // Send token update
+            const tokenUpdate = {
+              event: 'token',
+              data: {
+                id: messageId,
+                token: chunk,
+                sequence: getNextSequence()
+              }
+            };
+            await writer.write(encoder.encode(JSON.stringify(tokenUpdate) + '\n'));
+
+            // Add a small delay to simulate typing
+            // Send every character with a small delay to create a smoother typing effect
+            // We don't need to delay every 5 characters, but every character for a more natural effect
+            await new Promise(resolve => setTimeout(resolve, 15));
+          }
+
+          // Calculate tokens and credits
+          const tokenInfo = TokenCalculator.calculateMessageTokens(lastResponse, text);
+          const creditsDeducted = TokenCalculator.calculateCredits(
+            currentModel,
+            parseInt(tokenInfo.promptTokens),
+            parseInt(tokenInfo.completionTokens)
+          );
+
+          // Add to total credits deducted
+          totalCreditsDeducted = totalCreditsDeducted.plus(new Decimal(creditsDeducted));
+
+          // Save the brainstorm message to the database
+          const brainstormMessage = await prisma.chatHistory.create({
+            data: {
+              chat_id: chatId,
+              user_input: lastResponse,
+              api_response: text,
+              input_type: 'brainstorm',
+              output_type: 'brainstorm',
+              timestamp: new Date(),
+              context_id: '',
+              model: currentModel,
+              credits_deducted: creditsDeducted,
+            }
+          });
+
+          messageIds.push(brainstormMessage.history_id);
+
+          // Log API usage
+          await APIUsageService.logAPIUsage({
+            userId: user.id,
+            chatId,
+            modelName: currentModel,
+            tokensUsed: tokenInfo.totalTokens,
+            promptTokens: tokenInfo.promptTokens,
+            completionTokens: tokenInfo.completionTokens,
+            creditsDeducted,
+            messageIds: [brainstormMessage.history_id]
+          });
+
+          // Send message complete event
+          const messageCompleteEvent = {
+            event: 'messageComplete',
+            data: {
+              id: messageId,
+              dbId: brainstormMessage.history_id,
+              model: currentModel,
+              text: text,
+              index: i,
+              creditsDeducted: creditsDeducted,
+              sequence: getNextSequence()
+            }
+          };
+          await writer.write(encoder.encode(JSON.stringify(messageCompleteEvent) + '\n'));
+
+          // Store the response for the next iteration and summary
+          brainstormResponses.push(text);
+          lastResponse = text;
+        } catch (iterationError) {
+          // Handle errors in individual iterations separately so one failure doesn't stop the whole process
+          serverLogger.error(`Error in brainstorm iteration ${i + 1}`, {
+            error: iterationError instanceof Error ? iterationError.message : 'Unknown error',
+            stack: iterationError instanceof Error ? iterationError.stack : undefined
+          });
+
+          // Try to recover and continue with next iteration
+          try {
+            // Log error instead of streaming it
+            serverLogger.error(`Error in generation ${i + 1}: ${iterationError instanceof Error ? iterationError.message : 'Unknown error'}`, {
+              iteration: i
+            });
+
+            // Save a placeholder message to maintain the flow
+            await prisma.chatHistory.create({
+              data: {
+                chat_id: chatId,
+                user_input: lastResponse,
+                api_response: `[Error during brainstorm generation #${i + 1}]`,
+                input_type: 'brainstorm',
+                output_type: 'brainstorm',
+                timestamp: new Date(),
+                context_id: '',
+                model: i % 2 === 0 ? mainModel : additionalModel,
+                credits_deducted: '0', // Convert to string for DB
+              }
+            });
+
+            // Continue to next iteration
+            continue;
+          } catch (recoveryError) {
+            serverLogger.error('Failed to recover from iteration error', {
+              error: recoveryError instanceof Error ? recoveryError.message : 'Unknown error',
+            });
+          }
         }
-
-        // Calculate tokens and credits
-        const tokenInfo = TokenCalculator.calculateMessageTokens(lastResponse, text);
-        const creditsDeducted = TokenCalculator.calculateCredits(
-          currentModel,
-          parseInt(tokenInfo.promptTokens),
-          parseInt(tokenInfo.completionTokens)
-        );
-
-        // Add to total credits deducted
-        totalCreditsDeducted = totalCreditsDeducted.plus(new Decimal(creditsDeducted));
-
-        // Save the brainstorm message to the database
-        const brainstormMessage = await prisma.chatHistory.create({
-          data: {
-            chat_id: chatId,
-            user_input: lastResponse,
-            api_response: text,
-            input_type: 'brainstorm',
-            output_type: 'brainstorm',
-            timestamp: new Date(),
-            context_id: '',
-            model: currentModel,
-            credits_deducted: creditsDeducted,
-          }
-        });
-
-        messageIds.push(brainstormMessage.history_id);
-
-        // Log API usage
-        await APIUsageService.logAPIUsage({
-          userId: user.id,
-          chatId,
-          modelName: currentModel,
-          tokensUsed: tokenInfo.totalTokens,
-          promptTokens: tokenInfo.promptTokens,
-          completionTokens: tokenInfo.completionTokens,
-          creditsDeducted,
-          messageIds: [brainstormMessage.history_id]
-        });
-
-        // Send message complete event
-        const messageCompleteEvent = {
-          event: 'messageComplete',
-          data: {
-            id: messageId,
-            dbId: brainstormMessage.history_id,
-            model: currentModel,
-            text: text,
-            index: i,
-            creditsDeducted: creditsDeducted,
-            sequence: getNextSequence()
-          }
-        };
-        await writer.write(encoder.encode(JSON.stringify(messageCompleteEvent) + '\n'));
-
-        // Store the response for the next iteration and summary
-        brainstormResponses.push(text);
-        lastResponse = text;
       }
 
       // Send status update for summary generation

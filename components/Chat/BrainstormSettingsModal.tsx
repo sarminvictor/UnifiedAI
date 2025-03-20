@@ -146,7 +146,7 @@ export const BrainstormSettingsModal = ({
                 <DialogHeader>
                     <DialogTitle>Brainstorm Settings</DialogTitle>
                     <DialogDescription>
-                        Configure how your brainstorming session will work.
+                        Configure how brainstorming works for this chat session.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">

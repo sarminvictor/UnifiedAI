@@ -17,43 +17,10 @@ const nextConfig = {
     images: {
         unoptimized: true,
     },
-    webpack: (config, { dev, isServer }) => {
-        // Add optimization for development
-        if (dev && !isServer) {
-            config.optimization = {
-                ...config.optimization,
-                splitChunks: {
-                    chunks: 'all',
-                },
-            };
-        }
-        return config;
-    },
-    experimental: {
-        // Remove appDir as it's now default in Next.js 14
-        optimizePackageImports: ['@langchain/openai', '@langchain/anthropic', '@langchain/google-genai'],
-        // Mark problem packages for client-side rendering only
-        serverComponentsExternalPackages: [
-            'resend',
-            '@radix-ui/react-accordion',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-slot',
-            '@radix-ui/react-separator',
-            '@geist-ui/core',
-            'sonner'
-        ]
-    },
     poweredByHeader: false,
 
-    // Disable static generation for specific paths
-    modularizeImports: {
-        'sonner': {
-            transform: 'sonner/{{member}}'
-        },
-        '@geist-ui/core': {
-            transform: '@geist-ui/core/{{member}}'
-        }
-    },
+    // Add transpilePackages for sonner
+    transpilePackages: ['sonner'],
 
     async rewrites() {
         return [

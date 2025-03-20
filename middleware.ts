@@ -14,39 +14,67 @@ async function validatePlan(planId: string) {
 }
 
 export async function middleware(request: NextRequest) {
-  // Skip auth checks for Next.js API routes related to authentication
-  if (request.nextUrl.pathname.startsWith('/api/auth/')) {
+  // Get the pathname of the request
+  const { pathname } = request.nextUrl;
+
+  // Allow access to static assets and API routes (except those that need auth)
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/debug/') ||
+    pathname === '/favicon.ico'
+  ) {
     return NextResponse.next();
   }
 
+  // Check for authentication token
   const token = await getToken({ req: request });
-  const isAuthenticated = !!token;
-  const isAuthPage = request.nextUrl.pathname.startsWith('/auth/');
-  const isDebugPage = request.nextUrl.pathname.startsWith('/debug');
-  const isRootPage = request.nextUrl.pathname === '/';
-  const isProtectedRoute = !isAuthPage && !isDebugPage && !isRootPage;
 
-  // Redirect authenticated users from auth pages to main app
-  if (isAuthenticated && isAuthPage) {
-    return NextResponse.redirect(new URL('/c', request.url));
-  }
+  // Define authentication routes that should be accessible without auth
+  const isAuthRoute =
+    pathname.startsWith('/auth/') ||
+    pathname === '/auth' ||
+    pathname.startsWith('/debug/') ||
+    pathname === '/debug';
 
-  // Allow access to debug pages regardless of auth status
-  if (isDebugPage) {
+  // Define payment callback routes (should remain accessible)
+  const isPaymentRoute =
+    pathname === '/payment/success' ||
+    pathname === '/payment/failed';
+
+  // Define public routes that don't require authentication
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname.startsWith('/api/public/') ||
+    pathname.startsWith('/api/webhooks/');
+
+  // Allow authenticated users to access payment routes
+  if (isPaymentRoute && token) {
     return NextResponse.next();
   }
 
-  // Redirect unauthenticated users from protected routes to login
-  if (!isAuthenticated && isProtectedRoute) {
+  // Allow access to public routes
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
+
+  // Redirect unauthenticated users to signin for all protected routes
+  if (!token && !isAuthRoute && !isPublicRoute) {
+    // Save the original URL as the callback URL
     const signInUrl = new URL('/auth/signin', request.url);
     signInUrl.searchParams.set('callbackUrl', request.url);
     return NextResponse.redirect(signInUrl);
   }
 
+  // Redirect authenticated users away from auth routes to the app
+  if (token && isAuthRoute) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
   // Handle subscription-related routes
-  if (request.nextUrl.pathname.startsWith('/api/subscriptions')) {
+  if (pathname.startsWith('/api/subscriptions')) {
     // Skip validation for plans listing
-    if (request.nextUrl.pathname === '/api/subscriptions/plans') {
+    if (pathname === '/api/subscriptions/plans') {
       return NextResponse.next();
     }
 
@@ -59,23 +87,30 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Verify user exists for protected routes
-  if (token?.email && isProtectedRoute) {
-    const response = await fetch(`${request.nextUrl.origin}/api/auth/verify-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email: token.email }),
-    });
+  // Verify user exists for all authenticated routes
+  if (token?.email && !isAuthRoute && !isPublicRoute) {
+    try {
+      const response = await fetch(`${request.nextUrl.origin}/api/auth/verify-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: token.email }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!data.userExists) {
+      if (!data.userExists) {
+        return NextResponse.redirect(new URL('/auth/signin', request.url));
+      }
+    } catch (error) {
+      console.error('Error verifying user:', error);
+      // If verification fails, redirect to sign in as a fallback
       return NextResponse.redirect(new URL('/auth/signin', request.url));
     }
   }
 
+  // Allow the request to continue
   return NextResponse.next();
 }
 
@@ -83,16 +118,11 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes) except api/auth routes which need to be checked
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - api/debug (debug API routes)
+     * - public (public files)
      */
-    '/((?!api/debug|_next/static|_next/image|favicon.ico).*)',
-    '/api/auth/:path*',
-    '/api/chat/:path*',
-    '/api/subscriptions/:path*',
-    '/api/webhook'
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 };

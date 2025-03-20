@@ -1,16 +1,4 @@
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth.config';
-
-export default async function Home() {
-  const session = await getServerSession(authOptions);
-
-  // If user is authenticated, redirect to the protected chat interface
-  if (session) {
-    redirect('/c');
-  }
-
-  // Otherwise show landing page for non-authenticated users
+export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
       <h1 className="text-4xl font-bold mb-4">Welcome to UnifiedAI</h1>

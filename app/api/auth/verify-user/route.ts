@@ -5,15 +5,36 @@ import prisma from '@/lib/prismaClient';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const { email } = await request.json();
+  try {
+    const { email } = await request.json();
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+    if (!email) {
+      return NextResponse.json({ userExists: false }, { status: 400 });
+    }
 
-  if (!user) {
-    return NextResponse.json({ userExists: false });
+    // Check if user exists (case insensitive)
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: email.toLowerCase(),
+          mode: 'insensitive',
+        }
+      },
+      select: {
+        id: true,
+      }
+    });
+
+    return NextResponse.json({
+      userExists: Boolean(user),
+      userId: user?.id || null
+    });
+
+  } catch (error) {
+    console.error('Error verifying user:', error);
+    return NextResponse.json({
+      userExists: false,
+      error: 'Error verifying user'
+    }, { status: 500 });
   }
-
-  return NextResponse.json({ userExists: true });
 }

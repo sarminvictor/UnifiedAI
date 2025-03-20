@@ -1,11 +1,9 @@
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from '@/lib/prismaClient';
 import bcrypt from 'bcryptjs';
 import type { NextAuthOptions, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
-import type { AdapterUser } from 'next-auth/adapters';
 
 // Custom logger for auth errors
 const authLogger = {
@@ -23,7 +21,6 @@ const authLogger = {
 };
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       id: 'credentials',
@@ -39,7 +36,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           // Find user by email (case insensitive)
-          const user = await prisma.user.findFirst({
+          const user: any = await prisma.user.findFirst({
             where: {
               email: {
                 equals: credentials.email.toLowerCase(),
@@ -86,55 +83,66 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile }: { user: any; account: any; profile?: any }) {
       try {
-        if (account?.provider === 'google') {
-          if (!user.email) {
-            throw new Error('User email is required');
-          }
-
+        if (account?.provider === 'google' && profile?.email) {
           // Check if user already exists
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email },
+          const existingUser: any = await prisma.user.findUnique({
+            where: { email: profile.email.toLowerCase() },
           });
 
           if (!existingUser) {
             // Create new user for Google auth
+            const userData: any = {
+              email: profile.email.toLowerCase(),
+              name: profile.name ?? '',
+              password: '', // No password for Google users
+              credits_remaining: '50', // Default starting credits
+            };
+
+            // Add image if available
+            if (profile?.picture) {
+              userData.image = profile.picture;
+            }
+
             const newUser = await prisma.user.create({
-              data: {
-                email: user.email,
-                name: user.name ?? '',
-                image: user.image ?? '',
-                password: '', // No password for Google users
-                credits_remaining: '50', // Default starting credits
-                created_at: new Date(),
-                updated_at: new Date(),
-              },
+              data: userData,
             });
+
+            // Update the user object with our new user's ID
             user.id = newUser.id;
           } else {
+            // Update the user object with the existing user's ID
             user.id = existingUser.id;
+
+            // Optionally update the user's profile information if needed
+            if (profile.name && !existingUser.name) {
+              const updateData: any = { name: profile.name };
+
+              // Add image if available
+              if (profile.picture) {
+                updateData.image = profile.picture;
+              }
+
+              await prisma.user.update({
+                where: { id: existingUser.id },
+                data: updateData
+              });
+            }
           }
         }
         return true; // Allow sign-in to proceed
       } catch (error) {
-        authLogger.error('signIn', { error });
+        authLogger.error('signIn', { error, provider: account?.provider });
         return false;
       }
     },
-    async session({ session, token }: { session: Session; token: JWT }) {
+    async session({ session, token }) {
       try {
         // If we have a user ID in the token, look up fresh user data
         if (token.sub) {
-          const user = await prisma.user.findUnique({
+          const user: any = await prisma.user.findUnique({
             where: { id: token.sub },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              credits_remaining: true,
-              image: true
-            }
           });
 
           if (user) {
@@ -154,16 +162,23 @@ export const authOptions: NextAuthOptions = {
         return session; // Return session even if there's an error
       }
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
+      // Initial sign in
       if (user) {
         token.sub = user.id;
         // Store any custom user data in the token
         token.name = user.name || null;
         token.email = user.email || null;
-        token.picture = user.image || null;
+        if (user.image) token.picture = user.image;
         // @ts-ignore
         token.credits_remaining = user.credits_remaining;
       }
+
+      // On subsequent calls, update the token if we have new account info
+      if (account) {
+        token.provider = account.provider;
+      }
+
       return token;
     },
     async redirect({ url, baseUrl }) {
@@ -195,6 +210,5 @@ export const authOptions: NextAuthOptions = {
     error: '/auth/error', // Add a dedicated error page
   },
   debug: process.env.NODE_ENV === 'development',
-  logger: authLogger,
   secret: process.env.NEXTAUTH_SECRET,
 };
